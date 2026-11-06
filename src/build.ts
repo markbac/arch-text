@@ -17,7 +17,8 @@ export async function build(source: string): Promise<BuildResult> {
   const resolved = resolve(parsed.statements);
   const diagnostics = [...parsed.diagnostics, ...resolved.diagnostics].sort((a, b) => a.range.line - b.range.line || a.range.col - b.range.col);
   if (hasErrors(diagnostics)) return { diagnostics };
-  return { scene: emit(await layout(resolved.model)), diagnostics };
+  const ops = new Map(resolved.model.edges.map((e) => [e.id, e.op]));
+  return { scene: emit(await layout(resolved.model), ops), diagnostics };
 }
 
 /** The scene as file text: two-space JSON with a final newline, the same on every platform. */

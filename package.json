@@ -1,0 +1,55 @@
+{
+  "name": "arch-text",
+  "version": "0.1.0",
+  "description": "Write architecture diagrams as text and get laid-out Excalidraw scenes, SVG and PNG.",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/markbac/arch-text.git"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "arch-text": "dist/cli.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node scripts/build-export-page.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:update": "vitest run -u"
+  },
+  "dependencies": {
+    "elkjs": "0.9.3",
+    "fontkit": "2.0.4",
+    "playwright-core": "1.63.0",
+    "tinyglobby": "0.2.10"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.18.0",
+    "@excalidraw/excalidraw": "0.18.0",
+    "@types/fontkit": "2.0.7",
+    "@types/node": "22.10.7",
+    "eslint": "9.18.0",
+    "globals": "15.14.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "typescript": "5.7.3",
+    "typescript-eslint": "8.21.0",
+    "vite": "6.0.7",
+    "vitest": "3.0.5"
+  }
+}

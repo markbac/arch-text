@@ -1,0 +1,9 @@
+title "Three systems"
+
+# The walking skeleton supports systems and -> edges only.
+system Meter
+system HES
+system Platform
+
+Meter -> HES: DLMS/COSEM
+HES -> Platform: Events

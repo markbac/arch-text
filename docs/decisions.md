@@ -71,7 +71,7 @@ The plan left open whether to make PNGs with Excalidraw's `exportToBlob` or by c
 
 ### Findings
 
-`spike/export.mjs` makes both from the same scene, at twice the size.
+`spike/export.mjs` makes both from the same scene. It asked for twice the size from each, but `exportToBlob` ignores `appState.exportScale`, so its PNG came out at normal size while resvg's is doubled; the scale has to be passed through `getDimensions` (found in phase 2). The differences below do not depend on size.
 
 ![exportToBlob on the left, resvg on the right](images/spike-png-routes.png)
 

@@ -1,0 +1,23 @@
+title "Smart metering"
+
+# Containers hold elements; an edge may end on a container (Engineer -> Meter).
+boundary Meter
+  component Firmware
+  component Comms module @comms
+  Firmware -> @comms: Meter data
+
+system HES
+system Platform
+  component Ingest
+  component Store
+  Ingest -> Store
+
+actor Operator
+actor Engineer
+datastore Readings
+
+@comms -> HES: DLMS/COSEM
+HES -> Ingest: Events
+Store -> Readings
+Engineer -> Meter: Site visit
+Operator ..> Platform: Alerts

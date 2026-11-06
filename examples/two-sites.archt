@@ -1,0 +1,23 @@
+title "Two sites"
+
+# Three levels of nesting, a group, and names used twice. An edge's names resolve
+# in its own block first, then in the blocks around it.
+boundary Site A
+  boundary Rack
+    system Gateway @gateway-a
+    system Logger
+    Gateway -> Logger
+  group
+    component Sensor 1
+    component Sensor 2
+  Sensor 1 -> Gateway
+  Sensor 2 -> Gateway
+
+boundary Site B
+  boundary Rack
+    system Gateway @gateway-b
+    system Logger
+    Gateway -> Logger
+
+system Cloud
+@gateway-a -> Cloud -> @gateway-b

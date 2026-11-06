@@ -23,11 +23,11 @@ export interface Diagnostic {
 export const Codes = {
   /** A tab in the indentation. */
   tab: 'AT001',
-  /** An indented line: blocks are not supported yet. */
+  /** An indented line with no block to belong to. */
   indent: 'AT002',
   /** A statement that needs a name has none. */
   missingName: 'AT003',
-  /** A keyword or edge kind that is planned but not supported yet. */
+  /** A feature that is planned but not supported yet: a warning, and the feature is ignored. */
   notYet: 'AT004',
   /** A line that is not a statement. */
   unknownStatement: 'AT005',
@@ -43,6 +43,26 @@ export const Codes = {
   selfEdge: 'AT010',
   /** Text after the end of a statement. */
   trailingText: 'AT011',
+  /** Elements indented under an actor or datastore. */
+  noChildren: 'AT012',
+  /** An attribute arch-text does not know (ignored). */
+  unknownAttr: 'AT013',
+  /** A line indented to a level no enclosing block uses. */
+  dedent: 'AT014',
+  /** A chain such as `A -> B -> C` with a label. */
+  chainLabel: 'AT015',
+  /** A group with nothing in it. */
+  emptyGroup: 'AT016',
+  /** An edge to or from a group, which is not drawn. */
+  groupEdge: 'AT017',
+  /** An edge between a container and something inside it (skipped). */
+  containerEdge: 'AT018',
+  /** An unknown option, or a value an option does not take. */
+  badOption: 'AT019',
+  /** `title`, `option`, `use` or `style` inside a block. */
+  notTopLevel: 'AT020',
+  /** A `[` with no closing `]`. */
+  unclosedAttrs: 'AT021',
 } as const;
 
 export function error(code: string, message: string, range: Range, hint?: string): Diagnostic {

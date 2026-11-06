@@ -1,6 +1,14 @@
-// Parser for the phase 2 subset of the notation: `title`, `system` and `->` edges.
-// Other keywords and edge kinds are recognised and reported as not supported yet (AT004).
+// Parser for the arch-text notation (docs/notation.md). Line based: indentation opens a block,
+// as in bpmn-text. Never throws on errors in the source; problems become diagnostics.
 import { Codes, type Diagnostic, error, type Range } from './diagnostics.js';
+
+export const ELEMENT_KINDS = ['system', 'component', 'actor', 'datastore', 'boundary'] as const;
+export type ElementKind = (typeof ELEMENT_KINDS)[number];
+/** Kinds that may hold other elements. */
+export const CONTAINER_KINDS: readonly string[] = ['system', 'component', 'boundary', 'group'];
+
+export const EDGE_OPS = ['<->', '..>', '->', '--'] as const;
+export type EdgeOp = (typeof EDGE_OPS)[number];
 
 export interface Ref {
   /** Set for `@id` references. */
@@ -10,21 +18,45 @@ export interface Ref {
   range: Range;
 }
 
+/** Attribute values by key. A flag has an empty list. */
+export type Attrs = Map<string, string[]>;
+
+export interface ElementStatement {
+  kind: 'element';
+  type: ElementKind | 'group';
+  name?: string;
+  id?: string;
+  attrs: Attrs;
+  children: Statement[];
+  range: Range;
+}
+
+export interface EdgeStatement {
+  kind: 'edge';
+  /** The endpoints in order; a chain `A -> B -> C` has three. */
+  refs: Ref[];
+  /** The operator between each pair of endpoints. */
+  ops: EdgeOp[];
+  label?: string;
+  attrs: Attrs;
+  range: Range;
+}
+
 export type Statement =
+  | ElementStatement
+  | EdgeStatement
   | { kind: 'title'; value: string; range: Range }
-  | { kind: 'system'; name: string; id?: string; range: Range }
-  | { kind: 'edge'; from: Ref; to: Ref; label?: string; range: Range };
+  | { kind: 'option'; key: string; value: string; range: Range }
+  | { kind: 'use'; what: string; path: string; range: Range }
+  | { kind: 'style'; selector: string; attrs: Attrs; range: Range };
 
 export interface ParseResult {
   statements: Statement[];
   diagnostics: Diagnostic[];
 }
 
-/** Keywords from the full notation that later phases add. */
-const LATER_KEYWORDS = ['component', 'actor', 'datastore', 'boundary', 'group', 'style', 'use', 'option'];
-/** Edge operators, longest first so `<->` is not read as `->`. */
-const EDGE_OPS = ['<->', '..>', '->', '--'] as const;
 const ID_RE = /^[A-Za-z_][A-Za-z0-9_-]*/;
+const KEY_RE = /^([a-z][a-z-]*)\s*:/;
 
 class ParseError extends Error {
   constructor(readonly diagnostic: Diagnostic) {
@@ -32,16 +64,65 @@ class ParseError extends Error {
   }
 }
 
-/** Reads one line left to right. Columns are 1-based. */
+/** Calls `fn` for each character outside strings and `[...]`, with its index. Stops when `fn` returns true. */
+function scanCode(text: string, fn: (i: number) => boolean | void): void {
+  let inString = false;
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (ch === '\\') i++;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') inString = true;
+    else if (ch === '[') depth++;
+    else if (ch === ']') depth = Math.max(0, depth - 1);
+    else if (depth === 0 && fn(i)) return;
+  }
+}
+
+/** Removes a `#` comment: at line start or after whitespace, outside strings and `[...]`. */
+function stripComment(text: string): string {
+  let cut = text.length;
+  scanCode(text, (i) => {
+    if (text[i] === '#' && (i === 0 || text[i - 1] === ' ' || text[i - 1] === '\t')) {
+      cut = i;
+      return true;
+    }
+  });
+  return text.slice(0, cut);
+}
+
+/** Every edge operator outside strings and `[...]`, in order. */
+function findEdgeOps(text: string): { index: number; op: EdgeOp }[] {
+  const found: { index: number; op: EdgeOp }[] = [];
+  let skipTo = -1;
+  scanCode(text, (i) => {
+    if (i < skipTo) return;
+    const op = EDGE_OPS.find((o) => text.startsWith(o, i));
+    if (op) {
+      found.push({ index: i, op });
+      skipTo = i + op.length;
+    }
+  });
+  return found;
+}
+
+/** Reads one line left to right. `offset` is the column of `text[0]` minus one. */
 class Line {
   pos = 0;
   constructor(
     readonly text: string,
     readonly line: number,
+    readonly offset: number,
   ) {}
 
   range(start: number, end: number): Range {
-    return { line: this.line, col: start + 1, endCol: Math.max(end, start + 1) + 1 };
+    return { line: this.line, col: this.offset + start + 1, endCol: this.offset + Math.max(end, start + 1) + 1 };
+  }
+  fail(code: string, message: string, start: number, end: number, hint?: string): never {
+    throw new ParseError(error(code, message, this.range(start, end), hint));
   }
   skipSpaces(): void {
     while (this.text[this.pos] === ' ') this.pos++;
@@ -50,7 +131,8 @@ class Line {
     this.skipSpaces();
     return this.pos >= this.text.length;
   }
-  startsWith(s: string): boolean {
+  peek(s: string): boolean {
+    this.skipSpaces();
     return this.text.startsWith(s, this.pos);
   }
 
@@ -74,12 +156,10 @@ class Line {
       out += ch;
       this.pos++;
     }
-    throw new ParseError(
-      error(Codes.unterminatedString, 'This string has no closing quote.', this.range(start, this.text.length), 'Add a `"` at the end of the text.'),
-    );
+    return this.fail(Codes.unterminatedString, 'This string has no closing quote.', start, this.text.length, 'Add a `"` at the end of the text.');
   }
 
-  /** A quoted string, or bare text up to the first of `stops` (trimmed). */
+  /** A quoted string, or bare text up to the first of `stops` outside strings (trimmed). */
   readText(stops: readonly string[]): { value: string; start: number; end: number } | undefined {
     this.skipSpaces();
     const start = this.pos;
@@ -98,149 +178,279 @@ class Line {
   }
 
   /** An `@id` at the current position. */
-  readId(): { value: string; start: number; end: number } {
+  readId(): string {
+    this.skipSpaces();
     const start = this.pos;
     const m = ID_RE.exec(this.text.slice(this.pos + 1));
-    if (!m) {
-      throw new ParseError(
-        error(Codes.missingName, 'Expected an ID after `@`.', this.range(start, start + 1), 'IDs start with a letter or `_`, for example `@hes`.'),
-      );
-    }
+    if (!m) this.fail(Codes.missingName, 'Expected an ID after `@`.', start, start + 1, 'IDs start with a letter or `_`, for example `@hes`.');
     this.pos += 1 + m[0].length;
-    return { value: m[0], start, end: this.pos };
+    return m[0];
   }
-}
 
-/** Removes a `#` comment: at line start or after whitespace, and outside strings. */
-function stripComment(text: string): string {
-  let inString = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (inString && ch === '\\') i++;
-    else if (ch === '"') inString = !inString;
-    else if (ch === '#' && !inString && (i === 0 || text[i - 1] === ' ' || text[i - 1] === '\t')) return text.slice(0, i);
+  /** `[key: value, flag, ...]` if the line continues with one; otherwise an empty map. */
+  readAttrs(): Attrs {
+    const attrs: Attrs = new Map();
+    if (!this.peek('[')) return attrs;
+    const open = this.pos;
+    let close = -1;
+    let inString = false;
+    for (let i = open + 1; i < this.text.length; i++) {
+      const ch = this.text[i];
+      if (inString) {
+        if (ch === '\\') i++;
+        else if (ch === '"') inString = false;
+      } else if (ch === '"') inString = true;
+      else if (ch === ']') {
+        close = i;
+        break;
+      }
+    }
+    if (close === -1) this.fail(Codes.unclosedAttrs, 'This attribute list has no closing `]`.', open, this.text.length, 'Add a `]` at the end.');
+    // Split on commas outside strings.
+    const items: string[] = [];
+    let cur = '';
+    inString = false;
+    for (let i = open + 1; i < close; i++) {
+      const ch = this.text[i]!;
+      if (inString && ch === '\\') {
+        cur += ch + (this.text[++i] ?? '');
+        continue;
+      }
+      if (ch === '"') inString = !inString;
+      if (ch === ',' && !inString) {
+        items.push(cur);
+        cur = '';
+      } else cur += ch;
+    }
+    items.push(cur);
+    let lastKey: string | undefined;
+    const unquote = (v: string) => (v.startsWith('"') && v.endsWith('"') && v.length >= 2 ? JSON.parse(v.replace(/\n/g, '\\n')) as string : v);
+    for (const raw of items) {
+      const item = raw.trim();
+      if (!item) continue;
+      const key = KEY_RE.exec(item);
+      if (key) {
+        lastKey = key[1]!;
+        attrs.set(lastKey, [unquote(item.slice(key[0].length).trim())]);
+      } else if (/^[a-z][a-z-]*$/.test(item) && (FLAGS.has(item) || !lastKey)) {
+        attrs.set(item, []);
+        lastKey = undefined;
+      } else if (lastKey) {
+        attrs.get(lastKey)!.push(unquote(item));
+      } else {
+        attrs.set(item, []);
+      }
+    }
+    this.pos = close + 1;
+    return attrs;
   }
-  return text;
-}
 
-/** Index of the first edge operator outside strings, with which operator it is. */
-function findEdgeOp(text: string): { index: number; op: (typeof EDGE_OPS)[number] } | undefined {
-  let inString = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (inString && ch === '\\') i++;
-    else if (ch === '"') inString = !inString;
-    else if (!inString) {
-      const op = EDGE_OPS.find((o) => text.startsWith(o, i));
-      if (op) return { index: i, op };
+  expectEnd(): void {
+    if (!this.atEnd()) {
+      this.fail(Codes.trailingText, 'Unexpected text after the end of the statement.', this.pos, this.text.length, 'Remove it, or quote the name if it is part of it.');
     }
   }
-  return undefined;
 }
 
-function expectEnd(l: Line): void {
-  if (!l.atEnd()) {
-    throw new ParseError(
-      error(Codes.trailingText, 'Unexpected text after the end of the statement.', l.range(l.pos, l.text.length), 'Remove it, or quote the name if it is part of it.'),
-    );
-  }
-}
+/** Attribute names that take no value. */
+const FLAGS = new Set(['icon-only', 'rounded']);
 
 function readRef(l: Line, stops: readonly string[]): Ref | undefined {
   l.skipSpaces();
-  if (l.startsWith('@')) {
+  const start = l.pos;
+  if (l.text[l.pos] === '@') {
     const id = l.readId();
-    return { id: id.value, range: l.range(id.start, id.end) };
+    return { id, range: l.range(start, l.pos) };
   }
   const t = l.readText(stops);
   return t && { name: t.value, range: l.range(t.start, t.end) };
 }
 
-function parseLine(l: Line): Statement | undefined {
+function parseEdge(l: Line, ops: { index: number; op: EdgeOp }[]): EdgeStatement {
+  const whole = l.range(0, l.text.length);
+  const refs: Ref[] = [];
+  ops.forEach(({ index, op }, k) => {
+    const segStart = k === 0 ? 0 : ops[k - 1]!.index + ops[k - 1]!.op.length;
+    const seg = new Line(l.text.slice(segStart, index), l.line, l.offset + segStart);
+    const ref = readRef(seg, []);
+    if (!ref) l.fail(Codes.missingName, `There is nothing before \`${op}\`.`, segStart, index + op.length, 'Write edges as `A -> B`.');
+    seg.expectEnd();
+    refs.push(ref);
+  });
+  const last = ops[ops.length - 1]!;
+  l.pos = last.index + last.op.length;
+  const to = readRef(l, [':', '[']);
+  if (!to) l.fail(Codes.missingName, `There is nothing after \`${last.op}\`.`, last.index, l.text.length, 'Write edges as `A -> B`.');
+  refs.push(to);
+  let label: string | undefined;
+  const labelStart = l.pos;
+  if (l.peek(':')) {
+    l.pos++;
+    label = l.readText(['['])?.value;
+    if (label !== undefined && ops.length > 1) {
+      l.fail(Codes.chainLabel, 'A chain of edges cannot have a label.', labelStart, l.pos, 'Write each labelled edge on its own line.');
+    }
+  }
+  const attrs = l.readAttrs();
+  l.expectEnd();
+  return { kind: 'edge', refs, ops: ops.map((o) => o.op), ...(label !== undefined ? { label } : {}), attrs, range: whole };
+}
+
+/** Parses one line's statement (without its block). */
+function parseLine(l: Line): Statement {
   const word = /^[a-z]+/.exec(l.text)?.[0] ?? '';
   const keyword = word && (l.text.length === word.length || l.text[word.length] === ' ') ? word : '';
   const whole = l.range(0, l.text.length);
+  const nameStops = ['@', '[', ...EDGE_OPS];
+
+  if ((ELEMENT_KINDS as readonly string[]).includes(keyword) || keyword === 'group') {
+    l.pos = word.length;
+    const name = l.readText(nameStops);
+    if (!name && keyword !== 'group') l.fail(Codes.missingName, `\`${keyword}\` needs a name.`, 0, l.text.length, `For example: \`${keyword} Platform\`.`);
+    const id = l.peek('@') ? l.readId() : undefined;
+    const attrs = l.readAttrs();
+    l.expectEnd();
+    return {
+      kind: 'element',
+      type: keyword as ElementKind | 'group',
+      ...(name ? { name: name.value } : {}),
+      ...(id ? { id } : {}),
+      attrs,
+      children: [],
+      range: whole,
+    };
+  }
 
   if (keyword === 'title') {
     l.pos = word.length;
     const t = l.readText([]);
-    if (!t) throw new ParseError(error(Codes.missingName, '`title` needs a name.', whole, 'For example: `title "Smart metering"`.'));
-    expectEnd(l);
+    if (!t) l.fail(Codes.missingName, '`title` needs a name.', 0, l.text.length, 'For example: `title "Smart metering"`.');
+    l.expectEnd();
     return { kind: 'title', value: t.value, range: whole };
   }
 
-  if (keyword === 'system') {
+  if (keyword === 'option') {
     l.pos = word.length;
-    const name = l.readText(['@', ...EDGE_OPS]);
-    if (!name) throw new ParseError(error(Codes.missingName, '`system` needs a name.', whole, 'For example: `system Platform`.'));
-    let id: string | undefined;
-    l.skipSpaces();
-    if (l.startsWith('@')) id = l.readId().value;
-    expectEnd(l);
-    return { kind: 'system', name: name.value, ...(id ? { id } : {}), range: whole };
+    const key = l.readText([' ']);
+    const value = l.readText([' ']);
+    if (!key || !value) l.fail(Codes.missingName, '`option` needs a name and a value.', 0, l.text.length, 'For example: `option direction down`.');
+    l.expectEnd();
+    return { kind: 'option', key: key.value, value: value.value, range: whole };
   }
 
-  if (keyword && LATER_KEYWORDS.includes(keyword)) {
-    throw new ParseError(
-      error(Codes.notYet, `\`${keyword}\` is not supported yet.`, l.range(0, keyword.length), 'This version supports `title`, `system` and `->` edges.'),
-    );
+  if (keyword === 'use') {
+    l.pos = word.length;
+    const what = l.readText([' ']);
+    const path = l.readText([]);
+    if (!what || !path) l.fail(Codes.missingName, '`use` needs what to use and a path.', 0, l.text.length, 'For example: `use icons ./icons.excalidrawlib`.');
+    return { kind: 'use', what: what.value, path: path.value, range: whole };
   }
 
-  const edge = findEdgeOp(l.text);
-  if (edge) {
-    if (edge.op !== '->') {
-      throw new ParseError(
-        error(Codes.notYet, `\`${edge.op}\` edges are not supported yet.`, l.range(edge.index, edge.index + edge.op.length), 'Use `->` for now.'),
-      );
-    }
-    const left = new Line(l.text.slice(0, edge.index), l.line);
-    const from = readRef(left, []);
-    if (!from) throw new ParseError(error(Codes.missingName, 'The edge has no source.', l.range(0, edge.index + 2), 'Write it as `A -> B`.'));
-    expectEnd(left);
-    l.pos = edge.index + edge.op.length;
-    const to = readRef(l, [':']);
-    if (!to) throw new ParseError(error(Codes.missingName, 'The edge has no target.', l.range(edge.index, l.text.length), 'Write it as `A -> B`.'));
-    let label: string | undefined;
-    l.skipSpaces();
-    if (l.startsWith(':')) {
-      l.pos++;
-      label = l.readText([])?.value;
-    }
-    expectEnd(l);
-    return { kind: 'edge', from, to, ...(label ? { label } : {}), range: whole };
+  if (keyword === 'style') {
+    l.pos = word.length;
+    const selector = l.readText(['[']);
+    if (!selector) l.fail(Codes.missingName, '`style` needs a type or `.class`.', 0, l.text.length, 'For example: `style system [fill: blue]`.');
+    const attrs = l.readAttrs();
+    l.expectEnd();
+    return { kind: 'style', selector: selector.value, attrs, range: whole };
   }
 
-  throw new ParseError(
-    error(Codes.unknownStatement, 'This is not a statement.', whole, 'Statements start with `title` or `system`, or are edges such as `A -> B: label`.'),
+  const ops = findEdgeOps(l.text);
+  if (ops.length) return parseEdge(l, ops);
+
+  return l.fail(
+    Codes.unknownStatement,
+    'This is not a statement.',
+    0,
+    l.text.length,
+    'Statements start with an element kind (system, component, actor, datastore, boundary, group), title, option, use or style, or are edges such as `A -> B: label`.',
   );
 }
 
 export function parse(source: string): ParseResult {
   const statements: Statement[] = [];
   const diagnostics: Diagnostic[] = [];
-  const lines = source.split(/\r?\n/);
-  lines.forEach((raw, i) => {
+  // Open blocks, innermost last: the indentation of their lines and where their statements go.
+  const stack: { indent: number; into: Statement[]; owner?: ElementStatement }[] = [{ indent: 0, into: statements }];
+  // The previous statement and its indentation, which an indented line may belong to.
+  let prev: { st: Statement; indent: number } | undefined;
+  let skipDeeperThan: number | undefined;
+
+  source.split(/\r?\n/).forEach((raw, i) => {
     const lineNo = i + 1;
-    const indent = /^[ \t]*/.exec(raw)![0];
-    const text = stripComment(raw.slice(indent.length)).trimEnd();
+    const indentText = /^[ \t]*/.exec(raw)![0];
+    const text = stripComment(raw.slice(indentText.length)).trimEnd();
     if (!text) return;
-    if (indent.includes('\t')) {
-      diagnostics.push(error(Codes.tab, 'Indentation uses a tab.', { line: lineNo, col: 1, endCol: indent.length + 1 }, 'Use spaces for indentation.'));
+    const indentRange = { line: lineNo, col: 1, endCol: indentText.length + 1 };
+    if (indentText.includes('\t')) {
+      diagnostics.push(error(Codes.tab, 'Indentation uses a tab.', indentRange, 'Use spaces for indentation.'));
       return;
     }
-    if (indent.length > 0) {
-      diagnostics.push(
-        error(Codes.indent, 'Indented blocks are not supported yet.', { line: lineNo, col: 1, endCol: indent.length + 1 }, 'Start the line at the left margin.'),
-      );
+    const indent = indentText.length;
+    // Lines under a statement that was rejected for having a block are skipped quietly.
+    if (skipDeeperThan !== undefined && indent > skipDeeperThan) return;
+    skipDeeperThan = undefined;
+
+    const top = stack[stack.length - 1]!;
+    if (indent > top.indent && !(prev && indent > prev.indent && prev.indent === top.indent)) {
+      diagnostics.push(error(Codes.indent, 'Unexpected indentation.', indentRange, 'Indent only the lines inside a block, under the element that holds them.'));
       return;
     }
+    if (indent > top.indent && prev) {
+      // A new block under the previous statement.
+      const owner = prev.st;
+      if (owner.kind !== 'element' || !CONTAINER_KINDS.includes(owner.type)) {
+        const what = owner.kind === 'element' ? `\`${owner.type}\`` : 'This statement';
+        diagnostics.push(
+          error(
+            owner.kind === 'element' ? Codes.noChildren : Codes.indent,
+            owner.kind === 'element' ? `${what} cannot contain other elements.` : 'Unexpected indentation.',
+            indentRange,
+            'Only boundary, system, component and group can contain elements.',
+          ),
+        );
+        skipDeeperThan = prev.indent;
+        return;
+      }
+      stack.push({ indent, into: owner.children, owner });
+    } else {
+      while (stack.length > 1 && indent < stack[stack.length - 1]!.indent) stack.pop();
+      if (indent !== stack[stack.length - 1]!.indent) {
+        diagnostics.push(error(Codes.dedent, 'This indentation does not match any enclosing block.', indentRange, 'Line it up with the block it belongs to.'));
+        return;
+      }
+    }
+
+    const block = stack[stack.length - 1]!;
+    let st: Statement;
     try {
-      const st = parseLine(new Line(text, lineNo));
-      if (st) statements.push(st);
+      st = parseLine(new Line(text, lineNo, indent));
     } catch (e) {
-      if (e instanceof ParseError) diagnostics.push(e.diagnostic);
-      else throw e;
+      if (!(e instanceof ParseError)) throw e;
+      diagnostics.push(e.diagnostic);
+      prev = undefined;
+      skipDeeperThan = indent;
+      return;
     }
+    if ((st.kind === 'title' || st.kind === 'option' || st.kind === 'use' || st.kind === 'style') && block.owner) {
+      diagnostics.push(error(Codes.notTopLevel, `\`${st.kind}\` must be at the top level, not inside a block.`, st.range, 'Move it to the left margin.'));
+      return;
+    }
+    block.into.push(st);
+    prev = { st, indent };
   });
+
+  // Groups exist only to hold things.
+  const checkGroups = (list: Statement[]) => {
+    for (const st of list) {
+      if (st.kind !== 'element') continue;
+      if (st.type === 'group' && !st.children.some((c) => c.kind === 'element')) {
+        diagnostics.push(error(Codes.emptyGroup, 'This group holds no elements.', st.range, 'Indent the elements it groups under it.'));
+      }
+      checkGroups(st.children);
+    }
+  };
+  checkGroups(statements);
   return { statements, diagnostics };
 }
+

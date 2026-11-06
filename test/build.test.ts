@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { generateNKeysBetween } from 'fractional-indexing';
 import { describe, expect, it } from 'vitest';
 import { build, serialise } from '../src/build.js';
-import type { ExcalidrawElement, Scene } from '../src/emit.js';
+import { type ExcalidrawElement, fractionalIndex, type Scene } from '../src/emit.js';
 
 const EXAMPLES = path.resolve('examples');
 const examples = fs.readdirSync(EXAMPLES).filter((f) => f.endsWith('.archt'));
@@ -79,5 +80,12 @@ describe('layout', () => {
     const { scene } = await build('system A\nsystem B\nsystem A to B\nA -> B: x\nA -> B: y');
     const ids = scene!.elements.map((e) => e.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+describe('fractional indices', () => {
+  it('match the keys Excalidraw\'s fractional-indexing library generates in sequence', () => {
+    const keys = generateNKeysBetween(null, null, 5000);
+    expect(keys.map((_, i) => fractionalIndex(i))).toEqual(keys);
   });
 });

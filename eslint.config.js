@@ -3,10 +3,10 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist/', 'coverage/', 'out/', 'spike/'] },
+  { ignores: ['dist/', 'dist-test/', 'coverage/', 'out/', 'spike/'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   { languageOptions: { globals: { ...globals.node } } },
-  { files: ['export-page/**'], languageOptions: { globals: { ...globals.browser } } },
+  { files: ['export-page/**', 'test/editor-page/**'], languageOptions: { globals: { ...globals.browser } } },
   { rules: { '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }] } },
 );

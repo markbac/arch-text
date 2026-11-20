@@ -5,19 +5,35 @@
 arch-text compiles a small text notation into an [Excalidraw](https://excalidraw.com) scene, laid out automatically with [ELK](https://eclipse.dev/elk/), with arrows bound to their shapes so they stay attached when you move things. It exports SVG and PNG headlessly and fully offline, and both keep the scene inside them, so they reopen in Excalidraw for editing. It is the architecture-diagram sibling of [bpmn-text](https://github.com/markbac/bpmn-text).
 
 ```archt
-title "Three systems"
+title "Smart metering"
 
-system Meter
+boundary Meter
+  component Firmware
+  component Comms module @comms
+  Firmware -> @comms: Meter data
+
 system HES
 system Platform
+  component Ingest
+  component Store
+  Ingest -> Store
 
-Meter -> HES: DLMS/COSEM
-HES -> Platform: Events
+actor Operator
+actor Engineer
+datastore Readings
+
+@comms -> HES: DLMS/COSEM
+HES -> Ingest: Events
+Store -> Readings
+Engineer -> Meter: Site visit
+Operator ..> Platform: Alerts
 ```
 
-![The example above, exported to PNG](docs/images/three-systems.png)
+![The example above, exported to PNG](docs/images/smart-metering.png)
 
-> **Status: walking skeleton.** This version supports `title`, `system` and `->` edges with labels, which is enough to run the whole pipeline end to end. Components, actors, datastores, nested boundaries, groups, styling and icons follow; see the [plan](https://github.com/markbac/arch-text/issues/1) for the full notation and the phases.
+Elements are `system`, `component`, `actor`, `datastore` and `boundary`, nested to any depth, plus invisible `group`s. Edges are `->`, `<->`, `--` and `..>`, with optional labels, and may be chained. [docs/notation.md](docs/notation.md) has the whole notation, its grammar and every diagnostic. More examples are in [examples/](examples/).
+
+> **Status: full notation, unstyled.** Styling (colours, sketch level, fonts) and icons come next; for now their attributes and directives are accepted and ignored with a warning. See the [plan](https://github.com/markbac/arch-text/issues/1) for the phases.
 
 ## Install
 
@@ -69,19 +85,15 @@ await exporter.close();
 
 ## Diagnostics
 
-| Code | Severity | Meaning |
-|---|---|---|
-| AT001 | error | Indentation uses a tab |
-| AT002 | error | Indented line: blocks are not supported yet |
-| AT003 | error | A statement needs a name (`system`, `title`, `@id`, edge ends) |
-| AT004 | error | A keyword or edge kind that is planned but not supported yet |
-| AT005 | error | A line that is not a statement |
-| AT006 | error | A string with no closing quote |
-| AT007 | error | The same `@id` on two elements |
-| AT008 | error | An edge end that names nothing (with the closest name as a hint) |
-| AT009 | error | An edge end whose name matches more than one element |
-| AT010 | warning | An edge from an element to itself, which is left out |
-| AT011 | error | Text after the end of a statement |
+Each problem is reported with a code, the line, a caret under the problem and, where there is one, a hint. Errors stop `build` writing output; warnings do not. The codes are listed in [docs/notation.md](docs/notation.md#diagnostics).
+
+```text
+meter.archt:19:1: error AT008: Nothing is called "coms".
+   |
+19 | coms -> HES: DLMS/COSEM
+   | ^^^^
+   = Did you mean "@comms"?
+```
 
 ## Development
 
@@ -93,7 +105,7 @@ npm test               # needs the build and Chromium
 npm run test:update    # rewrite test/golden/ after an intended output change
 ```
 
-The tests compare every example in `examples/` with its golden `.excalidraw` and `.svg` files in `test/golden/`, so any change to layout or output fails until the golden files are updated on purpose.
+The tests compare every example in `examples/` with its golden `.excalidraw` and `.svg` files in `test/golden/`, so any change to layout or output fails until the golden files are updated on purpose. They also open every example in the real Excalidraw editor (built on first run into `dist-test/`), move each shape that has arrows, and check that the arrows stay attached.
 
 ## Licence
 

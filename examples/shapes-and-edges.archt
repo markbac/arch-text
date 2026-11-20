@@ -1,0 +1,17 @@
+title "Shapes and edges"
+option direction down
+
+# Every shape and every kind of edge, laid out top to bottom.
+actor User
+system Web app
+component Session cache
+datastore Accounts
+boundary Third parties
+  system Payments
+  system Email
+
+User -> Web app: HTTPS
+Web app <-> Session cache: reads and writes
+Web app -> Accounts
+Web app -- Payments
+Web app ..> Email: async

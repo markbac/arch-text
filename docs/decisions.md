@@ -133,6 +133,44 @@ Export must work with no network access, and must not quietly reach a CDN.
 - The release tarball and Docker image carry about 21 MB of fonts.
 - The page must be served over HTTP, not opened as a `file://` URL, because Excalidraw loads fonts with `fetch`.
 
+## ADR-005: Edges are elbow arrows
+
+**Status:** accepted (phase 3)
+
+### Context
+
+ELK routes edges orthogonally, with bends. In Excalidraw, a plain arrow with bends keeps its bends where they are when a shape it is bound to moves, and only its bound end is recomputed. Once the shape moves past the arrow's first bend, the recomputed end lands away from the shape.
+
+### Findings
+
+`test/editor.test.ts` opens every example in the full Excalidraw editor, moves each shape that has arrows 20 px down and 20 px right with the keyboard, and checks that each bound arrow end is on the moved shape's border. With plain arrows, two arrows in two examples ended 32.5 px off their shapes: both bend about 20 px after leaving the shape. With elbow arrows (`elbowed: true`, and a `fixedPoint` on each binding giving where the end sits on the shape), every arrow in every example stays on its shape, and Excalidraw re-routes it. Excalidraw keeps ELK's route when the file is opened; it re-routes only an arrow whose shape is moved.
+
+### Decision
+
+Every edge is an elbow arrow, with fixed points taken from ELK's end points.
+
+### Consequences
+
+- Moving a shape in Excalidraw re-routes its arrows with Excalidraw's own router, so an edited diagram may route differently from a rebuilt one.
+- Excalidraw draws elbow arrows with slightly rounded corners.
+
+## ADR-006: Arrow labels are placed through the arrow's points
+
+**Status:** accepted (phase 3)
+
+### Context
+
+Excalidraw draws an arrow's label at the arrow's middle point, and it moves the label there when it opens a file, whatever position the file gives. ELK, meanwhile, makes room for each label somewhere along its edge, not necessarily in the middle.
+
+### Decision
+
+ELK places labels inline (on the edge). The emitter adds a point to the arrow where ELK put the label, on the line, and pads the shorter side with points on the line until that point is the middle one. In a top-to-bottom layout, ELK reserves room beside vertical edges rather than on them, so there shapes are also kept at least half the widest label's width away from edges.
+
+### Consequences
+
+- Labels land where ELK made room, and `test/build.test.ts` checks that no label overlaps a shape or another label.
+- Arrows with labels carry a few extra points on straight stretches; Excalidraw shows them as handles when the arrow is selected.
+
 ## Other findings from the spike
 
 These do not need an ADR, but later issues depend on them.

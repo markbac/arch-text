@@ -37,7 +37,8 @@ export function exportPageDir(): string {
   throw new ExportError('The export page is not built. Run `npm run build` first.');
 }
 
-function serve(root: string): Promise<http.Server> {
+/** Serves `root` on 127.0.0.1 at a free port. Also used by the editor tests. */
+export function serve(root: string): Promise<http.Server> {
   const server = http.createServer((req, res) => {
     const file = path.join(root, decodeURIComponent(new URL(req.url ?? '/', 'http://localhost').pathname));
     if (!file.startsWith(root + path.sep) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {

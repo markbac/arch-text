@@ -9,6 +9,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { build } from '../src/build.js';
 import type { Scene } from '../src/emit.js';
 import { serve } from '../src/exporter.js';
+import { normalizeSvg } from '../src/icons.js';
+import { FONTS, lineWidth } from '../src/text.js';
 
 const PAGE = path.resolve('dist-test/editor-page');
 const EXAMPLES = path.resolve('examples');
@@ -36,6 +38,12 @@ interface El {
   isDeleted: boolean;
 }
 
+/** The properties styling sets, which must survive opening and saving unchanged. */
+const STYLE_PROPS = [
+  'strokeColor', 'backgroundColor', 'fillStyle', 'strokeWidth', 'strokeStyle', 'roughness', 'opacity', 'roundness',
+  'fontFamily', 'fontSize', 'lineHeight', 'textAlign', 'verticalAlign', 'fileId', 'groupIds', 'containerId',
+];
+
 let server: Awaited<ReturnType<typeof serve>>;
 let browser: Browser;
 let page: Page;
@@ -56,10 +64,14 @@ afterAll(async () => {
   server?.close();
 });
 
-type Api = { api: { updateScene(d: unknown): void; getSceneElements(): El[] } };
+type Api = { api: { updateScene(d: unknown): void; addFiles(f: unknown[]): void; getSceneElements(): El[]; getFiles(): Record<string, unknown> } };
 
 async function load(scene: Scene): Promise<El[]> {
-  await page.evaluate((s) => (window as unknown as Api).api.updateScene({ elements: s.elements, appState: { selectedElementIds: {} } }), scene);
+  await page.evaluate((s) => {
+    const { api } = window as unknown as Api;
+    api.addFiles(Object.values(s.files));
+    api.updateScene({ elements: s.elements, appState: { selectedElementIds: {} } });
+  }, scene);
   // A click on empty canvas gives the editor keyboard focus.
   await page.mouse.click(700, 880);
   return elements();
@@ -101,7 +113,25 @@ function toBorder([x, y]: [number, number], b: El): number {
 describe.each(examples)('examples/%s in the Excalidraw editor', (file) => {
   let scene: Scene;
   beforeAll(async () => {
-    scene = (await build(fs.readFileSync(path.join(EXAMPLES, file), 'utf8'))).scene!;
+    scene = (await build(fs.readFileSync(path.join(EXAMPLES, file), 'utf8'), { file: path.join(EXAMPLES, file) })).scene!;
+  });
+
+  it('keeps every style property and image through opening and saving in Excalidraw', async () => {
+    await load(scene);
+    const saved = JSON.parse(
+      await page.evaluate(() => {
+        const w = window as unknown as Api & { serializeAsJSON(e: unknown, a: unknown, f: unknown, t: string): string };
+        return w.serializeAsJSON(w.api.getSceneElements(), {}, w.api.getFiles(), 'local');
+      }),
+    ) as { elements: Record<string, unknown>[]; files: Record<string, { dataURL: string }> };
+    const byId = new Map(saved.elements.map((e) => [e.id, e]));
+    for (const el of scene.elements) {
+      const props = STYLE_PROPS.filter((p) => p in el);
+      const after = byId.get(el.id)!;
+      expect(Object.fromEntries(props.map((p) => [p, after[p]])), el.id).toEqual(Object.fromEntries(props.map((p) => [p, el[p]])));
+    }
+    expect(Object.keys(saved.files ?? {}).sort()).toEqual(Object.keys(scene.files).sort());
+    for (const [id, f] of Object.entries(scene.files)) expect(saved.files[id]!.dataURL).toBe(f.dataURL);
   });
 
   it('opens with every element, and every arrow bound at both ends', async () => {
@@ -135,6 +165,59 @@ describe.each(examples)('examples/%s in the Excalidraw editor', (file) => {
         }
         expect([a.startBinding?.elementId, a.endBinding?.elementId], `${id} still bound`).toContain(shape.id);
       }
+    }
+  });
+});
+
+describe('SVG icons as Excalidraw stores them', () => {
+  it.each([
+    ['complete, with text around it', '<?xml version="1.0"?>\n<!-- c -->\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 2" width="4" height="2"><rect width="4" height="2"/></svg>\n'],
+    ['no width or height', '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 24"><rect/></svg>'],
+    ['no viewBox', '<svg xmlns="http://www.w3.org/2000/svg" width="20px" height="40"><rect/></svg>'],
+    ['no xmlns', '<svg viewBox="0 0 10 10" width="10" height="10"><rect/></svg>'],
+    ['percentage width', '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="30" viewBox="0 0 60 30"><rect/></svg>'],
+    ['nothing at all', '<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>'],
+    ['fractional viewBox', '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12.5 7.25"><rect/></svg>'],
+  ])('%s: the editor keeps it exactly as arch-text embeds it', async (name, svg) => {
+    // The editor rewrites an SVG file it is given into its normal form; read back what it kept.
+    const stored = await page.evaluate(
+      ([id, text]) => {
+        const { api } = window as unknown as { api: { addFiles(f: unknown[]): void; getFiles(): Record<string, { dataURL: string }> } };
+        api.addFiles([{ id, mimeType: 'image/svg+xml', dataURL: `data:image/svg+xml;base64,${btoa(text)}`, created: 1 }]);
+        const kept = api.getFiles()[id]!.dataURL;
+        return atob(kept.slice(kept.indexOf(',') + 1));
+      },
+      [`svg-${name}`, svg] as const,
+    );
+    expect(normalizeSvg(svg)).toBe(stored);
+  });
+});
+
+describe('text measurement matches the browser', () => {
+  const LABELS = ['HES', 'Comms module', 'Identity Provider (OIDC)', 'Café payments', 'Zürich data centre', 'iiiiiiiiii', 'WWWWWWWWWW', 'A, B & C -> D'];
+  for (const [name, font] of Object.entries(FONTS)) it(`${name} (${font.family})`, async ({ skip }) => {
+    // Headless Chromium on Linux rounds each glyph's advance to a whole pixel, so its widths are
+    // not exact there and cannot check ours. Excalidraw in a desktop browser does not round.
+    const rounds = await page.evaluate(async () => {
+      await document.fonts.load('20px Excalifont', 'i');
+      const ctx = document.createElement('canvas').getContext('2d')!;
+      ctx.font = '20px Excalifont';
+      return ['i', 'ii', 'HES', 'Comms module'].every((t) => Number.isInteger(ctx.measureText(t).width));
+    });
+    if (rounds) skip();
+    for (const size of [16, 20, 28]) {
+      // Excalidraw registers its font faces, with their unicode ranges, in the editor page.
+      const css = font.family === 'ComicShanns' ? '"Comic Shanns"' : font.family;
+      const widths = await page.evaluate(
+        async ([labels, size, css]) => {
+          await Promise.all(labels.map((l) => document.fonts.load(`${size}px ${css}`, l)));
+          const ctx = document.createElement('canvas').getContext('2d')!;
+          ctx.font = `${size}px ${css}`;
+          return labels.map((l) => ctx.measureText(l).width);
+        },
+        [LABELS, size, css] as const,
+      );
+      LABELS.forEach((l, i) => expect(lineWidth(l, font.family, size), `${l} at ${size}px`).toBeCloseTo(widths[i]!, 1));
     }
   });
 });

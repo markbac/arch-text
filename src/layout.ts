@@ -2,14 +2,14 @@
 // (hierarchical layered layout), so edges between nested elements are routed together.
 import { createRequire } from 'node:module';
 import type { ELK as ElkInstance, ElkExtendedEdge, ElkNode, LayoutOptions } from 'elkjs/lib/elk-api.js';
+import type { LoadedIcon } from './icons.js';
 import type { Direction, Model, NodeKind } from './model.js';
-import { measure, type TextSize } from './text.js';
+import type { Look } from './style.js';
+import { FONTS, measure, type TextSize } from './text.js';
 
 // elkjs is CommonJS; TypeScript's NodeNext typing of its default export is wrong, so load it with require.
 const ELK = createRequire(import.meta.url)('elkjs/lib/elk.bundled.js') as new () => ElkInstance;
 
-export const NODE_FONT_SIZE = 20;
-export const EDGE_FONT_SIZE = 16;
 /** Excalidraw keeps bound text this far inside its container. */
 export const BOUND_TEXT_PADDING = 5;
 const MIN_WIDTH = 120;
@@ -22,6 +22,22 @@ const GROUP_PAD = 16;
 
 /** The stick figure for an actor, drawn at the top of its box. */
 export const ACTOR = { width: 40, height: 70, head: 20, labelGap: 6 } as const;
+
+/**
+ * Icon boxes, in px: `inside` a shape above its label, the whole node with `icon-only` (and for an
+ * actor, in place of the stick figure), and in the `corner` of a container beside its title.
+ * An icon is scaled to fit its box, keeping its aspect ratio.
+ */
+export const ICON = { inside: 40, only: 64, corner: 24, top: 12, gap: 6, cornerGap: 8 } as const;
+
+/** Where an element's icon goes. */
+export type IconPlace = 'inside' | 'only' | 'corner';
+
+/** The size of an icon fitted into a square box of side `box`. */
+export function fit(icon: { width: number; height: number }, box: number): { width: number; height: number } {
+  const s = Math.min(box / icon.width, box / icon.height);
+  return { width: r(icon.width * s), height: r(icon.height * s) };
+}
 
 export type Point = [number, number];
 
@@ -40,6 +56,9 @@ export interface LaidOutNode {
   label?: TextSize;
   /** Height of a datastore's top ellipse. */
   cap?: number;
+  look: Look;
+  /** The icon's absolute box, and where it sits. */
+  icon?: { x: number; y: number; width: number; height: number; place: IconPlace };
 }
 
 export interface LaidOutEdge {
@@ -50,6 +69,7 @@ export interface LaidOutEdge {
   points: Point[];
   /** The label and its centre, where ELK made room for it. */
   label?: { text: string; x: number; y: number } & TextSize;
+  look: Look;
 }
 
 export interface Layout {
@@ -87,10 +107,39 @@ const rootOptions = (direction: Direction, widestLabel: number): LayoutOptions =
 /** Rounds to 2 decimal places, so output does not carry floating-point noise. */
 const r = (v: number) => Math.round(v * 100) / 100;
 
-/** The size of a leaf element, from its label and shape. */
-function leafSize(kind: NodeKind, label: TextSize | undefined): { width: number; height: number; cap?: number } {
+/** Where an element's icon goes, if it has one. */
+export function iconPlace(kind: NodeKind, container: boolean, look: Look): IconPlace {
+  if (container || kind === 'boundary') return 'corner';
+  return look.iconOnly || kind === 'actor' ? 'only' : 'inside';
+}
+
+/** The size of a leaf element, from its label, shape and icon (already fitted). */
+function leafSize(
+  kind: NodeKind,
+  label: TextSize | undefined,
+  icon?: { width: number; height: number; place: IconPlace },
+): { width: number; height: number; cap?: number } {
   const lw = label?.width ?? 0;
   const lh = label?.height ?? 0;
+  if (icon?.place === 'only') {
+    return { width: Math.ceil(Math.max(icon.width, lw + 2 * BOUND_TEXT_PADDING)), height: Math.ceil(icon.height + ICON.gap + lh + BOUND_TEXT_PADDING) };
+  }
+  if (icon?.place === 'inside') {
+    const width = Math.max(MIN_WIDTH, Math.ceil(lw + 2 * PAD_X), Math.ceil(icon.width + 2 * PAD_X));
+    const height = Math.max(MIN_HEIGHT, Math.ceil(ICON.top + icon.height + ICON.gap + lh + BOUND_TEXT_PADDING));
+    if (kind === 'datastore') {
+      const cap = Math.round(Math.min(30, width * 0.18));
+      return { width, height: height + cap, cap };
+    }
+    return { width, height };
+  }
+  if (icon?.place === 'corner') {
+    // A boundary with nothing in it: room for the title and the icon beside it.
+    return {
+      width: Math.max(MIN_WIDTH, Math.ceil(lw + 2 * PAD_X + icon.width + ICON.cornerGap)),
+      height: Math.max(MIN_HEIGHT, Math.ceil(lh + 2 * PAD_Y), Math.ceil(icon.height + 2 * PAD_Y)),
+    };
+  }
   if (kind === 'actor') {
     return { width: Math.ceil(Math.max(ACTOR.width, lw + 2 * BOUND_TEXT_PADDING)), height: Math.ceil(ACTOR.height + ACTOR.labelGap + lh + BOUND_TEXT_PADDING) };
   }
@@ -103,26 +152,37 @@ function leafSize(kind: NodeKind, label: TextSize | undefined): { width: number;
   return { width, height };
 }
 
-export async function layout(model: Model): Promise<Layout> {
-  const labels = new Map(model.nodes.map((n) => [n.id, n.name === undefined ? undefined : measure(n.name, NODE_FONT_SIZE)]));
+/** Lays out the model. `icons` are the loaded icons by element ID, at their natural size. */
+export async function layout(model: Model, icons: ReadonlyMap<string, Pick<LoadedIcon, 'width' | 'height'>> = new Map()): Promise<Layout> {
+  const labels = new Map(model.nodes.map((n) => [n.id, n.name === undefined ? undefined : measure(n.name, n.look.fontSize, FONTS[n.look.font])]));
   const byId = new Map(model.nodes.map((n) => [n.id, n]));
   const sizes = new Map<string, { width: number; height: number; cap?: number }>();
+  const fitted = new Map(
+    model.nodes.flatMap((n) => {
+      const icon = icons.get(n.id);
+      if (!icon) return [];
+      const place = iconPlace(n.kind, n.children.length > 0, n.look);
+      return [[n.id, { ...fit(icon, place === 'only' ? ICON.only : place === 'corner' ? ICON.corner : ICON.inside), place }] as const];
+    }),
+  );
 
-  const edgeLabels = new Map(model.edges.map((e) => [e.id, e.label === undefined ? undefined : { text: e.label, ...measure(e.label, EDGE_FONT_SIZE) }]));
+  const edgeLabels = new Map(model.edges.map((e) => [e.id, e.label === undefined ? undefined : { text: e.label, ...measure(e.label, e.look.fontSize, FONTS[e.look.font]) }]));
   const widestLabel = Math.max(0, ...[...edgeLabels.values()].map((l) => l?.width ?? 0));
 
   const toElk = (id: string): ElkNode => {
     const n = byId.get(id)!;
     const label = labels.get(id);
+    const icon = fitted.get(id);
     if (!n.children.length) {
-      const size = leafSize(n.kind, label);
+      const size = leafSize(n.kind, label, icon);
       sizes.set(id, size);
       return { id, width: size.width, height: size.height };
     }
     const isGroup = n.kind === 'group';
-    const top = isGroup ? GROUP_PAD : Math.ceil(BOUND_TEXT_PADDING + (label?.height ?? 0) + CONTAINER_PAD / 2);
+    const top = isGroup ? GROUP_PAD : Math.ceil(BOUND_TEXT_PADDING + Math.max(label?.height ?? 0, icon?.height ?? 0) + CONTAINER_PAD / 2);
     const side = isGroup ? GROUP_PAD : CONTAINER_PAD;
-    const minWidth = Math.ceil((label?.width ?? 0) + 2 * (BOUND_TEXT_PADDING + side));
+    // Room for the icon on both sides, so a centred title never runs under it.
+    const minWidth = Math.ceil((label?.width ?? 0) + 2 * (BOUND_TEXT_PADDING + side + (icon ? icon.width + ICON.cornerGap : 0)));
     return {
       id,
       layoutOptions: {
@@ -167,6 +227,14 @@ export async function layout(model: Model): Promise<Layout> {
     const p = abs.get(n.id)!;
     const label = labels.get(n.id);
     const cap = sizes.get(n.id)?.cap;
+    const icon = fitted.get(n.id);
+    let iconBox: LaidOutNode['icon'];
+    if (icon) {
+      const lh = label?.height ?? 0;
+      const x = icon.place === 'corner' ? p.x + p.width - BOUND_TEXT_PADDING - ICON.cornerGap / 2 - icon.width : p.x + (p.width - icon.width) / 2;
+      const y = icon.place === 'only' ? p.y : icon.place === 'corner' ? p.y + BOUND_TEXT_PADDING + Math.max(0, (lh - icon.height) / 2) : p.y + (cap ?? 0) + ICON.top;
+      iconBox = { x: r(x), y: r(y), width: icon.width, height: icon.height, place: icon.place };
+    }
     return {
       id: n.id,
       kind: n.kind,
@@ -179,6 +247,8 @@ export async function layout(model: Model): Promise<Layout> {
       height: r(p.height),
       ...(label ? { label } : {}),
       ...(cap !== undefined ? { cap } : {}),
+      look: n.look,
+      ...(iconBox ? { icon: iconBox } : {}),
     };
   });
 
@@ -199,7 +269,7 @@ export async function layout(model: Model): Promise<Layout> {
     const label = edgeLabels.get(e.id);
     const placed = elkEdge?.labels?.[0];
     const at = placed ? { x: r(o.x + (placed.x ?? 0) + (placed.width ?? 0) / 2), y: r(o.y + (placed.y ?? 0) + (placed.height ?? 0) / 2) } : undefined;
-    return { id: e.id, from: e.from, to: e.to, points, ...(label && at ? { label: { ...label, ...at } } : {}) };
+    return { id: e.id, from: e.from, to: e.to, points, ...(label && at ? { label: { ...label, ...at } } : {}), look: e.look };
   });
   return { nodes, edges };
 }

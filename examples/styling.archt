@@ -1,0 +1,31 @@
+title "Styling"
+
+# Layer 1, options: the defaults for the whole diagram.
+option sketch clean
+option font normal
+option colors types
+
+# Layer 2, rules for a kind.
+style datastore [fill-style: hachure]
+style edge [stroke: gray-4]
+
+# Layer 3, rules for a class, in source order: a later rule wins over an earlier one.
+style .external [fill: gray-1, stroke: gray-4, stroke-style: dashed, text-color: gray-4]
+style .critical [stroke: red, stroke-width: bold]
+style .async [stroke-style: dotted, text-color: blue]
+
+# Layer 4, attributes on the element itself, which win over everything.
+boundary Cloud [stroke: blue, text-color: blue, rounded]
+  system API gateway @api [class: critical]
+  component Orders [fill: orange, rough: cartoon]
+  component Billing [class: external, critical]   # .critical comes later, so its red stroke wins
+  datastore Orders DB @db [font: code, font-size: small]
+
+system Payment provider @psp [class: external, font: hand, font-size: large]
+actor Customer [stroke: violet, opacity: 60]
+
+Customer -> @api: HTTPS [stroke: blue, stroke-width: extra-bold, font: hand]
+@api -> Orders
+Orders -> @db [stroke-style: dashed]
+Orders -> Billing
+Billing ..> @psp: payment [class: async]

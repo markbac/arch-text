@@ -1,0 +1,21 @@
+title "Icons"
+use icons ./icons/iot.excalidrawlib
+
+# A library item in a container's corner, inside shapes, and an SVG file.
+boundary Site [icon: gateway]
+  component Firmware [icon: chip]
+  system Edge router @router [icon: ./icons/router.svg]
+  datastore Buffer [icon: server]
+
+# With icon-only, the icon is the node; an actor's icon replaces the stick figure.
+system Cloud platform @cloud [icon: cloud, icon-only]
+system Sensor [icon: sensor, icon-only]
+actor Field engineer @eng [icon: person]
+actor Operator
+
+Sensor -> Firmware: readings
+Firmware -> @router
+Firmware -> Buffer
+@router -> @cloud: MQTT
+@eng -> Site: visits
+Operator ..> @cloud

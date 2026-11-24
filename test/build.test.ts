@@ -6,6 +6,7 @@ import { build, serialise } from '../src/build.js';
 import { fractionalIndex, type Scene } from '../src/emit.js';
 import { resolve } from '../src/model.js';
 import { parse } from '../src/parser.js';
+import { readRanges, render } from '../scripts/font-ranges.mjs';
 
 type Box = { x: number; y: number; width: number; height: number };
 const inside = (a: Box, b: Box) => a.x >= b.x && a.y >= b.y && a.x + a.width <= b.x + b.width && a.y + a.height <= b.y + b.height;
@@ -19,7 +20,7 @@ function resolveExample(file: string) {
 }
 
 async function buildExample(file: string): Promise<Scene> {
-  const { scene, diagnostics } = await build(fs.readFileSync(path.join(EXAMPLES, file), 'utf8'));
+  const { scene, diagnostics } = await build(fs.readFileSync(path.join(EXAMPLES, file), 'utf8'), { file: path.join(EXAMPLES, file) });
   expect(diagnostics).toEqual([]);
   return scene!;
 }
@@ -65,7 +66,8 @@ describe.each(examples)('examples/%s', (file) => {
 
   it('puts every element inside its container, and overlaps nothing else', async () => {
     const { elements } = await buildExample(file);
-    const rects = elements.filter((e) => e.type === 'rectangle') as unknown as (Box & { id: string })[];
+    // Icons are drawn inside their node, so only the nodes' own boxes count.
+    const rects = elements.filter((e) => e.type === 'rectangle' && !e.id.includes(':icon')) as unknown as (Box & { id: string })[];
     const { model: m } = resolveExample(file);
     const parent = new Map(m.nodes.map((n) => [n.id, n.parent]));
     const ancestors = (id: string) => {
@@ -91,7 +93,7 @@ describe.each(examples)('examples/%s', (file) => {
     const titled = new Set(elements.filter((e) => e.type === 'text' && e.verticalAlign !== 'middle').map((t) => t.containerId));
     const labels = elements.filter((e) => e.type === 'text' && byId.get(e.containerId as string)?.type === 'arrow') as unknown as (Box & { text: string })[];
     // Containers are left out: their labels sit at the top, and arrows cross them.
-    const shapes = elements.filter((e) => e.type === 'rectangle' && !titled.has(e.id)) as unknown as (Box & { id: string })[];
+    const shapes = elements.filter((e) => e.type === 'rectangle' && !titled.has(e.id) && !e.id.includes(':icon')) as unknown as (Box & { id: string })[];
     for (const l of labels) {
       for (const s of shapes) expect(overlaps(l, s), `"${l.text}" overlaps ${s.id}`).toBe(false);
       for (const o of labels) if (o !== l) expect(overlaps(l, o), `"${l.text}" overlaps "${o.text}"`).toBe(false);
@@ -148,7 +150,7 @@ describe('layout', () => {
     const groupsOf = (prefix: string) => [...new Set(scene!.elements.filter((e) => e.id.startsWith(prefix)).map((e) => JSON.stringify(e.groupIds)))];
     expect(groupsOf('a')).toEqual(['["a:shape","group:g"]']);
     expect(groupsOf('d')).toEqual(['["d:shape","group:g"]']);
-    expect(scene!.elements.filter((e) => e.id.startsWith('a')).map((e) => e.type)).toEqual(['rectangle', 'text', 'ellipse', 'line', 'line', 'line']);
+    expect(scene!.elements.filter((e) => e.id.startsWith('a')).map((e) => e.type)).toEqual(['ellipse', 'line', 'line', 'line', 'rectangle', 'text']);
   });
 
   it('gives each element a unique ID, even when names and edges could collide', async () => {
@@ -162,5 +164,11 @@ describe('fractional indices', () => {
   it('match the keys Excalidraw\'s fractional-indexing library generates in sequence', () => {
     const keys = generateNKeysBetween(null, null, 5000);
     expect(keys.map((_, i) => fractionalIndex(i))).toEqual(keys);
+  });
+});
+
+describe('font ranges', () => {
+  it('match the font faces the installed Excalidraw declares (regenerate with `node scripts/font-ranges.mjs`)', () => {
+    expect(fs.readFileSync('src/font-ranges.ts', 'utf8').replace(/\r\n/g, '\n')).toBe(render(readRanges()));
   });
 });

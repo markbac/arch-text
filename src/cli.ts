@@ -32,6 +32,7 @@ Options:
       --scale <n>       export: PNG pixel ratio (default 1)
       --padding <px>    export: space around the drawing (default 16)
       --no-background   export: transparent background
+      --dark            export: Excalidraw's dark mode
   -h, --help            Show this help
   -v, --version         Show the version
 
@@ -116,7 +117,7 @@ async function runBuild(args: string[]): Promise<number> {
   let failed = false;
   for (const [i, file] of inputs.entries()) {
     const source = fs.readFileSync(file, 'utf8');
-    const { scene, diagnostics } = await build(source);
+    const { scene, diagnostics } = await build(source, { file });
     for (const d of diagnostics) console.error(formatDiagnostic(file, source, d));
     if (!scene) {
       failed = true;
@@ -145,6 +146,7 @@ async function runExport(args: string[]): Promise<number> {
       scale: { type: 'string' },
       padding: { type: 'string' },
       'no-background': { type: 'boolean' },
+      dark: { type: 'boolean' },
     },
   });
   const fromExt = values.output && /\.(svg|png)$/i.exec(values.output)?.[1]?.toLowerCase();
@@ -154,6 +156,7 @@ async function runExport(args: string[]): Promise<number> {
     scale: number('scale', values.scale, 1),
     padding: values.padding === undefined ? 16 : Number(values.padding),
     background: !values['no-background'],
+    dark: values.dark === true,
   };
   if (!Number.isFinite(options.padding) || options.padding < 0) throw new UsageError(`--padding needs a number of px, not "${values.padding}".`);
 

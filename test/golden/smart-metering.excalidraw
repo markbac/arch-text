@@ -546,84 +546,6 @@
       "index": "aD"
     },
     {
-      "id": "operator",
-      "type": "rectangle",
-      "x": 1104.5,
-      "y": 158,
-      "width": 97,
-      "height": 106,
-      "angle": 0,
-      "strokeColor": "transparent",
-      "backgroundColor": "transparent",
-      "fillStyle": "solid",
-      "strokeWidth": 2,
-      "strokeStyle": "solid",
-      "roughness": 1,
-      "opacity": 100,
-      "groupIds": [
-        "operator:shape"
-      ],
-      "frameId": null,
-      "roundness": null,
-      "seed": 2112518014,
-      "version": 1,
-      "versionNonce": 1002730812,
-      "isDeleted": false,
-      "boundElements": [
-        {
-          "type": "text",
-          "id": "operator:label"
-        },
-        {
-          "type": "arrow",
-          "id": "operator->platform"
-        }
-      ],
-      "updated": 1,
-      "link": null,
-      "locked": false,
-      "index": "aE"
-    },
-    {
-      "id": "operator:label",
-      "type": "text",
-      "x": 1109.66,
-      "y": 234,
-      "width": 86.68,
-      "height": 25,
-      "angle": 0,
-      "strokeColor": "#1e1e1e",
-      "backgroundColor": "transparent",
-      "fillStyle": "solid",
-      "strokeWidth": 2,
-      "strokeStyle": "solid",
-      "roughness": 1,
-      "opacity": 100,
-      "groupIds": [
-        "operator:shape"
-      ],
-      "frameId": null,
-      "roundness": null,
-      "seed": 982238270,
-      "version": 1,
-      "versionNonce": 1366645756,
-      "isDeleted": false,
-      "boundElements": null,
-      "updated": 1,
-      "link": null,
-      "locked": false,
-      "text": "Operator",
-      "fontSize": 20,
-      "fontFamily": 5,
-      "textAlign": "center",
-      "verticalAlign": "bottom",
-      "containerId": "operator",
-      "originalText": "Operator",
-      "autoResize": true,
-      "lineHeight": 1.25,
-      "index": "aF"
-    },
-    {
       "id": "operator:head",
       "type": "ellipse",
       "x": 1143,
@@ -651,7 +573,7 @@
       "updated": 1,
       "link": null,
       "locked": false,
-      "index": "aG"
+      "index": "aE"
     },
     {
       "id": "operator:body",
@@ -696,7 +618,7 @@
       "endBinding": null,
       "startArrowhead": null,
       "endArrowhead": null,
-      "index": "aH"
+      "index": "aF"
     },
     {
       "id": "operator:arms",
@@ -741,7 +663,7 @@
       "endBinding": null,
       "startArrowhead": null,
       "endArrowhead": null,
-      "index": "aI"
+      "index": "aG"
     },
     {
       "id": "operator:legs",
@@ -790,14 +712,14 @@
       "endBinding": null,
       "startArrowhead": null,
       "endArrowhead": null,
-      "index": "aJ"
+      "index": "aH"
     },
     {
-      "id": "engineer",
+      "id": "operator",
       "type": "rectangle",
-      "x": 0,
-      "y": 0,
-      "width": 91,
+      "x": 1104.5,
+      "y": 158,
+      "width": 97,
       "height": 106,
       "angle": 0,
       "strokeColor": "transparent",
@@ -808,35 +730,35 @@
       "roughness": 1,
       "opacity": 100,
       "groupIds": [
-        "engineer:shape"
+        "operator:shape"
       ],
       "frameId": null,
       "roundness": null,
-      "seed": 1310649228,
+      "seed": 2112518014,
       "version": 1,
-      "versionNonce": 949888524,
+      "versionNonce": 1002730812,
       "isDeleted": false,
       "boundElements": [
         {
           "type": "text",
-          "id": "engineer:label"
+          "id": "operator:label"
         },
         {
           "type": "arrow",
-          "id": "engineer->meter"
+          "id": "operator->platform"
         }
       ],
       "updated": 1,
       "link": null,
       "locked": false,
-      "index": "aK"
+      "index": "aI"
     },
     {
-      "id": "engineer:label",
+      "id": "operator:label",
       "type": "text",
-      "x": 5.06,
-      "y": 76,
-      "width": 80.88,
+      "x": 1109.66,
+      "y": 234,
+      "width": 86.68,
       "height": 25,
       "angle": 0,
       "strokeColor": "#1e1e1e",
@@ -847,28 +769,28 @@
       "roughness": 1,
       "opacity": 100,
       "groupIds": [
-        "engineer:shape"
+        "operator:shape"
       ],
       "frameId": null,
       "roundness": null,
-      "seed": 849567494,
+      "seed": 982238270,
       "version": 1,
-      "versionNonce": 1032892814,
+      "versionNonce": 1366645756,
       "isDeleted": false,
       "boundElements": null,
       "updated": 1,
       "link": null,
       "locked": false,
-      "text": "Engineer",
+      "text": "Operator",
       "fontSize": 20,
       "fontFamily": 5,
       "textAlign": "center",
       "verticalAlign": "bottom",
-      "containerId": "engineer",
-      "originalText": "Engineer",
+      "containerId": "operator",
+      "originalText": "Operator",
       "autoResize": true,
       "lineHeight": 1.25,
-      "index": "aL"
+      "index": "aJ"
     },
     {
       "id": "engineer:head",
@@ -898,7 +820,7 @@
       "updated": 1,
       "link": null,
       "locked": false,
-      "index": "aM"
+      "index": "aK"
     },
     {
       "id": "engineer:body",
@@ -943,7 +865,7 @@
       "endBinding": null,
       "startArrowhead": null,
       "endArrowhead": null,
-      "index": "aN"
+      "index": "aL"
     },
     {
       "id": "engineer:arms",
@@ -988,7 +910,7 @@
       "endBinding": null,
       "startArrowhead": null,
       "endArrowhead": null,
-      "index": "aO"
+      "index": "aM"
     },
     {
       "id": "engineer:legs",
@@ -1037,15 +959,15 @@
       "endBinding": null,
       "startArrowhead": null,
       "endArrowhead": null,
-      "index": "aP"
+      "index": "aN"
     },
     {
-      "id": "readings",
+      "id": "engineer",
       "type": "rectangle",
-      "x": 1791.5,
-      "y": 41,
-      "width": 135,
-      "height": 89,
+      "x": 0,
+      "y": 0,
+      "width": 91,
+      "height": 106,
       "angle": 0,
       "strokeColor": "transparent",
       "backgroundColor": "transparent",
@@ -1055,35 +977,35 @@
       "roughness": 1,
       "opacity": 100,
       "groupIds": [
-        "readings:shape"
+        "engineer:shape"
       ],
       "frameId": null,
       "roundness": null,
-      "seed": 705815948,
+      "seed": 1310649228,
       "version": 1,
-      "versionNonce": 422137868,
+      "versionNonce": 949888524,
       "isDeleted": false,
       "boundElements": [
         {
           "type": "text",
-          "id": "readings:label"
+          "id": "engineer:label"
         },
         {
           "type": "arrow",
-          "id": "store->readings"
+          "id": "engineer->meter"
         }
       ],
       "updated": 1,
       "link": null,
       "locked": false,
-      "index": "aQ"
+      "index": "aO"
     },
     {
-      "id": "readings:label",
+      "id": "engineer:label",
       "type": "text",
-      "x": 1815.78,
-      "y": 73,
-      "width": 86.44,
+      "x": 5.06,
+      "y": 76,
+      "width": 80.88,
       "height": 25,
       "angle": 0,
       "strokeColor": "#1e1e1e",
@@ -1094,28 +1016,28 @@
       "roughness": 1,
       "opacity": 100,
       "groupIds": [
-        "readings:shape"
+        "engineer:shape"
       ],
       "frameId": null,
       "roundness": null,
-      "seed": 321816838,
+      "seed": 849567494,
       "version": 1,
-      "versionNonce": 1551010702,
+      "versionNonce": 1032892814,
       "isDeleted": false,
       "boundElements": null,
       "updated": 1,
       "link": null,
       "locked": false,
-      "text": "Readings",
+      "text": "Engineer",
       "fontSize": 20,
       "fontFamily": 5,
       "textAlign": "center",
-      "verticalAlign": "middle",
-      "containerId": "readings",
-      "originalText": "Readings",
+      "verticalAlign": "bottom",
+      "containerId": "engineer",
+      "originalText": "Engineer",
       "autoResize": true,
       "lineHeight": 1.25,
-      "index": "aR"
+      "index": "aP"
     },
     {
       "id": "readings:body",
@@ -1216,7 +1138,7 @@
       "endBinding": null,
       "startArrowhead": null,
       "endArrowhead": null,
-      "index": "aS"
+      "index": "aQ"
     },
     {
       "id": "readings:cap",
@@ -1246,6 +1168,84 @@
       "updated": 1,
       "link": null,
       "locked": false,
+      "index": "aR"
+    },
+    {
+      "id": "readings",
+      "type": "rectangle",
+      "x": 1791.5,
+      "y": 41,
+      "width": 135,
+      "height": 89,
+      "angle": 0,
+      "strokeColor": "transparent",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [
+        "readings:shape"
+      ],
+      "frameId": null,
+      "roundness": null,
+      "seed": 705815948,
+      "version": 1,
+      "versionNonce": 422137868,
+      "isDeleted": false,
+      "boundElements": [
+        {
+          "type": "text",
+          "id": "readings:label"
+        },
+        {
+          "type": "arrow",
+          "id": "store->readings"
+        }
+      ],
+      "updated": 1,
+      "link": null,
+      "locked": false,
+      "index": "aS"
+    },
+    {
+      "id": "readings:label",
+      "type": "text",
+      "x": 1815.78,
+      "y": 73,
+      "width": 86.44,
+      "height": 25,
+      "angle": 0,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 2,
+      "strokeStyle": "solid",
+      "roughness": 1,
+      "opacity": 100,
+      "groupIds": [
+        "readings:shape"
+      ],
+      "frameId": null,
+      "roundness": null,
+      "seed": 321816838,
+      "version": 1,
+      "versionNonce": 1551010702,
+      "isDeleted": false,
+      "boundElements": null,
+      "updated": 1,
+      "link": null,
+      "locked": false,
+      "text": "Readings",
+      "fontSize": 20,
+      "fontFamily": 5,
+      "textAlign": "center",
+      "verticalAlign": "middle",
+      "containerId": "readings",
+      "originalText": "Readings",
+      "autoResize": true,
+      "lineHeight": 1.25,
       "index": "aT"
     },
     {

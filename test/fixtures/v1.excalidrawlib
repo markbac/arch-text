@@ -1,0 +1,158 @@
+{
+  "type": "excalidrawlib",
+  "version": 1,
+  "source": "test",
+  "library": [
+    [
+      {
+        "id": "ellipse-4",
+        "type": "ellipse",
+        "x": 10,
+        "y": 10,
+        "width": 40,
+        "height": 20,
+        "angle": 0,
+        "strokeColor": "#1e1e1e",
+        "backgroundColor": "transparent",
+        "fillStyle": "solid",
+        "strokeWidth": 2,
+        "strokeStyle": "solid",
+        "roughness": 1,
+        "opacity": 100,
+        "groupIds": [],
+        "frameId": null,
+        "roundness": null,
+        "seed": 1004,
+        "version": 1,
+        "versionNonce": 2004,
+        "isDeleted": false,
+        "boundElements": null,
+        "updated": 1,
+        "link": null,
+        "locked": false
+      }
+    ],
+    [
+      {
+        "id": "rectangle-1",
+        "type": "rectangle",
+        "x": 0,
+        "y": 0,
+        "width": 30,
+        "height": 30,
+        "angle": 0,
+        "strokeColor": "#1e1e1e",
+        "backgroundColor": "transparent",
+        "fillStyle": "solid",
+        "strokeWidth": 2,
+        "strokeStyle": "solid",
+        "roughness": 1,
+        "opacity": 100,
+        "groupIds": [
+          "g1"
+        ],
+        "frameId": null,
+        "roundness": null,
+        "seed": 1001,
+        "version": 1,
+        "versionNonce": 2001,
+        "isDeleted": false,
+        "boundElements": [
+          {
+            "type": "arrow",
+            "id": "line-3"
+          }
+        ],
+        "updated": 1,
+        "link": null,
+        "locked": false
+      },
+      {
+        "id": "rectangle-2",
+        "type": "rectangle",
+        "x": 70,
+        "y": 0,
+        "width": 30,
+        "height": 30,
+        "angle": 0,
+        "strokeColor": "#1e1e1e",
+        "backgroundColor": "transparent",
+        "fillStyle": "solid",
+        "strokeWidth": 2,
+        "strokeStyle": "solid",
+        "roughness": 1,
+        "opacity": 100,
+        "groupIds": [
+          "g1"
+        ],
+        "frameId": null,
+        "roundness": null,
+        "seed": 1002,
+        "version": 1,
+        "versionNonce": 2002,
+        "isDeleted": false,
+        "boundElements": [
+          {
+            "type": "arrow",
+            "id": "line-3"
+          }
+        ],
+        "updated": 1,
+        "link": null,
+        "locked": false
+      },
+      {
+        "id": "line-3",
+        "type": "arrow",
+        "x": 30,
+        "y": 15,
+        "width": 40,
+        "height": 0,
+        "angle": 0,
+        "strokeColor": "#1e1e1e",
+        "backgroundColor": "transparent",
+        "fillStyle": "solid",
+        "strokeWidth": 2,
+        "strokeStyle": "solid",
+        "roughness": 1,
+        "opacity": 100,
+        "groupIds": [
+          "g1"
+        ],
+        "frameId": null,
+        "roundness": null,
+        "seed": 1003,
+        "version": 1,
+        "versionNonce": 2003,
+        "isDeleted": false,
+        "boundElements": null,
+        "updated": 1,
+        "link": null,
+        "locked": false,
+        "points": [
+          [
+            0,
+            0
+          ],
+          [
+            40,
+            0
+          ]
+        ],
+        "lastCommittedPoint": null,
+        "startBinding": {
+          "elementId": "rectangle-1",
+          "focus": 0,
+          "gap": 1
+        },
+        "endBinding": {
+          "elementId": "rectangle-2",
+          "focus": 0,
+          "gap": 1
+        },
+        "startArrowhead": null,
+        "endArrowhead": "arrow"
+      }
+    ]
+  ]
+}

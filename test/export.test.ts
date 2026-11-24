@@ -27,7 +27,7 @@ afterAll(async () => {
 describe.each(examples)('exporting examples/%s', (file) => {
   let scene: Scene;
   beforeAll(async () => {
-    scene = (await build(fs.readFileSync(path.join(EXAMPLES, file), 'utf8'))).scene!;
+    scene = (await build(fs.readFileSync(path.join(EXAMPLES, file), 'utf8'), { file: path.join(EXAMPLES, file) })).scene!;
   });
   const ids = () => scene.elements.map((e) => ({ id: e.id, type: e.type }));
 
@@ -68,6 +68,37 @@ describe.each(examples)('exporting examples/%s', (file) => {
   it('leaves the background out when asked', async () => {
     expect(await ex.svg(scene, { background: true })).toMatch(/<rect[^>]*fill="#ffffff"/);
     expect(await ex.svg(scene, { background: false })).not.toMatch(/<rect[^>]*fill="#ffffff"/);
+  });
+});
+
+describe('styling and icons in exports', () => {
+  it.each([
+    ['hand', 'Excalifont'],
+    ['normal', 'Nunito'],
+    ['code', '"Comic Shanns"'],
+  ])('exports `option font %s` offline, with %s inlined', async (font, family) => {
+    const { scene } = await build(`option font ${font}\nsystem Café\nsystem B\nCafé -> B: label`);
+    const svg = await ex.svg(scene!);
+    expect(svg).toMatch(new RegExp(`@font-face\\s*\\{\\s*font-family:\\s*${family};\\s*src:\\s*url\\(data:font/woff2;base64,`));
+    const png = await ex.png(scene!);
+    expect(pngSize(png)[0]).toBeGreaterThan(0);
+  });
+
+  it('exports in dark mode when asked', async () => {
+    const { scene } = await build('system A');
+    const light = await ex.svg(scene!);
+    const dark = await ex.svg(scene!, { dark: true });
+    expect(light).not.toMatch(/invert\(93%\)/);
+    expect(dark).toMatch(/filter="invert\(93%\) hue-rotate\(180deg\)"/);
+    expect(await ex.png(scene!, { dark: true })).not.toEqual(await ex.png(scene!));
+  });
+
+  it('keeps SVG icons as vectors in the SVG, and every image in the embedded scene', async () => {
+    const { scene } = await build('system A [icon: ./wide.svg]\nsystem B [icon: ./wide.png]\nA -> B', { file: path.resolve('test/fixtures/diagram.archt') });
+    const svg = await ex.svg(scene!);
+    expect(svg).toContain('data:image/svg+xml;base64,');
+    expect(svg).toContain('data:image/png;base64,');
+    expect(await ex.readScene(svg, 'image/svg+xml')).toEqual(scene!.elements.map((e) => ({ id: e.id, type: e.type })));
   });
 });
 

@@ -148,10 +148,6 @@ describe('diagnostics', () => {
     ['AT003: element without a name', 'system', ['AT003 1:1-7']],
     ['AT003: @ without an ID', 'system A @', ['AT003 1:10-11']],
     ['AT003: edge without a target', 'system A\nA ->', ['AT003 2:3-5']],
-    ['AT004: styling attribute (warning)', 'system A [fill: blue]', ['AT004 1:1-22']],
-    ['AT004: later option (warning)', 'option sketch clean', ['AT004 1:1-20']],
-    ['AT004: use icons (warning)', 'use icons ./x.excalidrawlib', ['AT004 1:1-28']],
-    ['AT004: style (warning)', 'style system [fill: blue]', ['AT004 1:1-26']],
     ['AT005: not a statement', 'hello', ['AT005 1:1-6']],
     ['AT006: unterminated string', 'system "A', ['AT006 1:8-10']],
     ['AT007: duplicate ID', 'system A @x\nsystem B @x', ['AT007 2:1-12']],
@@ -168,8 +164,25 @@ describe('diagnostics', () => {
     ['AT018: edge into its own container (warning)', 'boundary A\n  system B\nA -> B', ['AT018 3:1-7']],
     ['AT019: unknown option', 'option colour red', ['AT019 1:1-18']],
     ['AT019: bad direction', 'option direction up', ['AT019 1:1-20']],
+    ['AT019: bad sketch', 'option sketch rough', ['AT019 1:1-20']],
+    ['AT019: bad font', 'option font serif', ['AT019 1:1-18']],
+    ['AT019: bad colors', 'option colors all', ['AT019 1:1-18']],
     ['AT020: directive inside a block', 'boundary A\n  title "x"', ['AT020 2:3-12']],
     ['AT021: unclosed attribute list', 'system A [doc: x', ['AT021 1:10-17']],
+    ['AT022: bold markup in a name (warning)', 'system **Core** platform', ['AT022 1:1-25']],
+    ['AT022: underline markup in an edge label (warning)', 'system A\nsystem B\nA -> B: <u>sync</u>', ['AT022 3:1-20']],
+    ['AT023: not a colour (warning)', 'system A [fill: blu]', ['AT023 1:1-21']],
+    ['AT023: font size out of range (warning)', 'system A [font-size: 900]', ['AT023 1:1-26']],
+    ['AT023: two values for one attribute (warning)', 'system A [fill: red, blue]', ['AT023 1:1-27']],
+    ['AT024: fill on an edge (warning)', 'system A\nsystem B\nA -> B [fill: red]', ['AT024 3:1-19']],
+    ['AT024: style on a group (warning)', 'group G [fill: red]\n  system A', ['AT024 1:1-20']],
+    ['AT024: icon-only without an icon (warning)', 'system A [icon-only]', ['AT024 1:1-21']],
+    ['AT025: style rule for a group', 'style group [fill: red]', ['AT025 1:1-24']],
+    ['AT025: style rule for nothing', 'style platform [fill: red]', ['AT025 1:1-27']],
+    ['AT026: use of something other than icons', 'use fonts ./x.woff2', ['AT026 1:1-20']],
+    ['AT026: missing icon library', 'use icons ./no-such.excalidrawlib', ['AT026 1:1-34']],
+    ['AT027: icon with no library', 'system A [icon: chip]', ['AT027 1:1-22']],
+    ['AT027: missing image', 'system A [icon: ./no-such.svg]', ['AT027 1:1-31']],
   ])('%s', async (_name, source, expected) => {
     expect(await codes(source)).toEqual(expected);
   });
@@ -189,6 +202,6 @@ describe('diagnostics', () => {
 
   it('produces no scene when there are errors, and a scene despite warnings', async () => {
     expect((await build('system A\nA -> B')).scene).toBeUndefined();
-    expect((await build('system A [fill: red]\nA -> A')).scene).toBeDefined();
+    expect((await build('system A [fill: blu]\nA -> A')).scene).toBeDefined();
   });
 });

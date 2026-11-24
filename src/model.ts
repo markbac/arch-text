@@ -3,6 +3,8 @@
 import { Codes, type Diagnostic, error, type Range, warning } from './diagnostics.js';
 import { distance, slug, unique } from './ids.js';
 import type { Attrs, EdgeOp, EdgeStatement, ElementKind, Ref, Statement } from './parser.js';
+import { checkLabel, classesOf, DEFAULT_OPTIONS, FONT_NAMES, type Look, lookFor, type Options, readAttrs, readRule, SKETCH, type StyleRule } from './style.js';
+import type { FontName } from './text.js';
 
 export type NodeKind = ElementKind | 'group';
 
@@ -14,6 +16,9 @@ export interface ModelNode {
   parent?: string;
   children: string[];
   attrs: Attrs;
+  /** How it is drawn, after options, style rules and its own attributes. */
+  look: Look;
+  range: Range;
 }
 
 export interface ModelEdge {
@@ -23,6 +28,14 @@ export interface ModelEdge {
   op: EdgeOp;
   label?: string;
   attrs: Attrs;
+  look: Look;
+  range: Range;
+}
+
+/** An icon library named by `use icons`. */
+export interface Library {
+  path: string;
+  range: Range;
 }
 
 export type Direction = 'RIGHT' | 'DOWN';
@@ -33,33 +46,40 @@ export interface Model {
   /** Every element in document order, so a parent always comes before its children. */
   nodes: ModelNode[];
   edges: ModelEdge[];
+  options: Options;
+  /** Icon libraries in the order they were named. */
+  libraries: Library[];
 }
 
-/** Attributes that later phases give meaning to (styling, icons, classes). */
-const LATER_ATTRS = new Set([
-  'icon', 'icon-only', 'class', 'fill', 'fill-style', 'stroke', 'stroke-width', 'stroke-style',
-  'rough', 'rounded', 'opacity', 'font', 'font-size', 'text-color', 'text-align', 'color',
-]);
-/** Attributes with a meaning now. `doc` is stored for later use and not drawn. */
-const KNOWN_ATTRS = new Set(['doc']);
-const LATER_OPTIONS = new Set(['sketch', 'font', 'colors']);
 const DIRECTIONS: Record<string, Direction> = { right: 'RIGHT', down: 'DOWN' };
 
 /** Names match ignoring case and repeated whitespace, as in bpmn-text. */
 const sameName = (a: string, b: string) => a.replace(/\s+/g, ' ').toLowerCase() === b.replace(/\s+/g, ' ').toLowerCase();
 
-function checkAttrs(attrs: Attrs, range: Range, diagnostics: Diagnostic[]): void {
-  const later = [...attrs.keys()].filter((k) => LATER_ATTRS.has(k));
-  const unknown = [...attrs.keys()].filter((k) => !LATER_ATTRS.has(k) && !KNOWN_ATTRS.has(k));
-  if (later.length) {
-    diagnostics.push(warning(Codes.notYet, `${later.map((k) => `\`${k}\``).join(', ')} ${later.length > 1 ? 'are' : 'is'} not supported yet, so ${later.length > 1 ? 'they are' : 'it is'} ignored.`, range));
-  }
-  for (const k of unknown) diagnostics.push(warning(Codes.unknownAttr, `\`${k}\` is not an attribute arch-text knows, so it is ignored.`, range, 'Check the spelling; see docs/notation.md for the attributes.'));
+/** Sets an option from `option <key> <value>`, or reports why it cannot. */
+function setOption(model: Model, key: string, value: string, range: Range, diagnostics: Diagnostic[]): void {
+  const v = value.toLowerCase();
+  const bad = (choices: string) => diagnostics.push(error(Codes.badOption, `\`${key}\` is ${choices}, not \`${value}\`.`, range));
+  if (key === 'direction') {
+    const d = DIRECTIONS[v];
+    if (d) model.direction = d;
+    else bad('`right` or `down`');
+  } else if (key === 'sketch') {
+    if (v in SKETCH) model.options.roughness = SKETCH[v]!;
+    else bad('`clean`, `artist` or `cartoon`');
+  } else if (key === 'font') {
+    if ((FONT_NAMES as readonly string[]).includes(v)) model.options.font = v as FontName;
+    else bad('`hand`, `normal` or `code`');
+  } else if (key === 'colors' || key === 'colours') {
+    if (v === 'none' || v === 'types') model.options.colors = v;
+    else bad('`none` or `types`');
+  } else diagnostics.push(error(Codes.badOption, `There is no option called \`${key}\`.`, range, 'The options are direction, sketch, font and colors.'));
 }
 
 export function resolve(statements: readonly Statement[]): { model: Model; diagnostics: Diagnostic[] } {
   const diagnostics: Diagnostic[] = [];
-  const model: Model = { direction: 'RIGHT', nodes: [], edges: [] };
+  const model: Model = { direction: 'RIGHT', nodes: [], edges: [], options: { ...DEFAULT_OPTIONS }, libraries: [] };
+  const rules: StyleRule[] = [];
 
   // Flatten the tree, remembering each element's parent and each edge's enclosing element.
   const elements: { st: Extract<Statement, { kind: 'element' }>; parent?: number }[] = [];
@@ -71,15 +91,14 @@ export function resolve(statements: readonly Statement[]): { model: Model; diagn
         walk(st.children, elements.length - 1);
       } else if (st.kind === 'edge') edges.push({ st, ...(parent !== undefined ? { scope: parent } : {}) });
       else if (st.kind === 'title') model.title = st.value;
-      else if (st.kind === 'option') {
-        if (st.key === 'direction') {
-          const d = DIRECTIONS[st.value];
-          if (d) model.direction = d;
-          else diagnostics.push(error(Codes.badOption, `\`direction\` is \`right\` or \`down\`, not \`${st.value}\`.`, st.range));
-        } else if (LATER_OPTIONS.has(st.key)) diagnostics.push(warning(Codes.notYet, `\`option ${st.key}\` is not supported yet, so it is ignored.`, st.range));
-        else diagnostics.push(error(Codes.badOption, `There is no option called \`${st.key}\`.`, st.range, 'The options are direction, sketch, font and colors.'));
-      } else if (st.kind === 'use') diagnostics.push(warning(Codes.notYet, `\`use ${st.what}\` is not supported yet, so it is ignored.`, st.range));
-      else if (st.kind === 'style') diagnostics.push(warning(Codes.notYet, '`style` is not supported yet, so it is ignored.', st.range));
+      else if (st.kind === 'option') setOption(model, st.key, st.value, st.range, diagnostics);
+      else if (st.kind === 'use') {
+        if (st.what === 'icons') model.libraries.push({ path: st.path, range: st.range });
+        else diagnostics.push(error(Codes.badLibrary, `arch-text can use icons, not \`${st.what}\`.`, st.range, 'Write `use icons <file.excalidrawlib>`.'));
+      } else if (st.kind === 'style') {
+        const rule = readRule(st.selector, st.attrs, st.range, diagnostics);
+        if (rule) rules.push(rule);
+      }
     }
   };
   walk(statements);
@@ -98,8 +117,11 @@ export function resolve(statements: readonly Statement[]): { model: Model; diagn
     // A repeated ID (already reported) still needs a unique one so the rest can be checked.
     return unique(st.id ?? slug(st.name ?? 'group'), taken);
   });
+  const own = elements.map(({ st }) => {
+    checkLabel(st.name, st.range, diagnostics);
+    return readAttrs(st.attrs, st.type === 'group' ? 'group' : 'element', st.range, diagnostics);
+  });
   elements.forEach(({ st, parent }, i) => {
-    checkAttrs(st.attrs, st.range, diagnostics);
     model.nodes.push({
       id: ids[i]!,
       kind: st.type,
@@ -107,10 +129,23 @@ export function resolve(statements: readonly Statement[]): { model: Model; diagn
       ...(parent !== undefined ? { parent: ids[parent]! } : {}),
       children: [],
       attrs: st.attrs,
+      look: undefined as unknown as Look,
+      range: st.range,
     });
   });
   const byId = new Map(model.nodes.map((n) => [n.id, n]));
   for (const n of model.nodes) if (n.parent) byId.get(n.parent)!.children.push(n.id);
+  // Looks depend on which elements are containers, so they come once the tree is complete.
+  model.nodes.forEach((n, i) => {
+    n.look = lookFor(n.kind, n.children.length > 0, classesOf(n.attrs), own[i]!, rules, model.options);
+    if (n.look.iconOnly && !n.look.icon) {
+      diagnostics.push(warning(Codes.notApplicable, '`icon-only` needs an `icon`, so it is ignored.', n.range, 'For example: `[icon: chip, icon-only]`.'));
+      n.look.iconOnly = false;
+    } else if (n.look.iconOnly && (n.children.length > 0 || n.kind === 'boundary')) {
+      diagnostics.push(warning(Codes.notApplicable, `\`icon-only\` does not apply to a ${n.children.length ? 'container' : 'boundary'}, so its icon goes in the top corner.`, n.range));
+      n.look.iconOnly = false;
+    }
+  });
 
   const ancestors = (id: string): string[] => {
     const out: string[] = [];
@@ -155,7 +190,8 @@ export function resolve(statements: readonly Statement[]): { model: Model; diagn
 
   const edgeIds = new Set<string>();
   for (const { st, scope } of edges) {
-    checkAttrs(st.attrs, st.range, diagnostics);
+    checkLabel(st.label, st.range, diagnostics);
+    const ownLook = readAttrs(st.attrs, 'edge', st.range, diagnostics);
     const scopeId = scope !== undefined ? ids[scope] : undefined;
     const ends = st.refs.map((r) => {
       const n = lookup(r, scopeId);
@@ -179,7 +215,18 @@ export function resolve(statements: readonly Statement[]): { model: Model; diagn
         );
         return;
       }
-      model.edges.push({ id: unique(`${from.id}->${to.id}`, edgeIds), from: from.id, to: to.id, op, ...(st.label !== undefined ? { label: st.label } : {}), attrs: st.attrs });
+      // `..>` is dashed unless something says otherwise, so it sits between the defaults and the rules.
+      const look = lookFor('edge', false, classesOf(st.attrs), ownLook, rules, model.options, op === '..>' ? { strokeStyle: 'dashed' } : {});
+      model.edges.push({
+        id: unique(`${from.id}->${to.id}`, edgeIds),
+        from: from.id,
+        to: to.id,
+        op,
+        ...(st.label !== undefined ? { label: st.label } : {}),
+        attrs: st.attrs,
+        look,
+        range: st.range,
+      });
     });
   }
 

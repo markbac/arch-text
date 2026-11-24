@@ -14,8 +14,10 @@ export interface ExportOptions {
   scale?: number;
   /** Space around the drawing, in px (default 16). */
   padding?: number;
-  /** Draw the white background (default true). */
+  /** Draw the background (default true). */
   background?: boolean;
+  /** Export in Excalidraw's dark mode (default false). */
+  dark?: boolean;
 }
 
 export class ExportError extends Error {}
@@ -110,7 +112,7 @@ export async function openExporter(options: { pageDir?: string } = {}): Promise<
       }
       return result;
     };
-    const opts = (o: ExportOptions = {}) => ({ scale: o.scale ?? 1, padding: o.padding ?? 16, background: o.background ?? true });
+    const opts = (o: ExportOptions = {}) => ({ scale: o.scale ?? 1, padding: o.padding ?? 16, background: o.background ?? true, dark: o.dark ?? false });
     type Api = { archText: Record<string, (...args: unknown[]) => Promise<unknown>> };
     const call = <T>(name: string, ...args: unknown[]) =>
       page.evaluate(([n, a]) => (window as unknown as Api).archText[n as string]!(...(a as unknown[])), [name, args] as const) as Promise<T>;

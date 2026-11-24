@@ -2,7 +2,7 @@
 
 Architecture decision records for arch-text. Each one gives the context, the decision, and the evidence behind it. The first four come from the phase 1 spike ([#2](https://github.com/markbac/arch-text/issues/2)), whose code is in [`spike/`](../spike/README.md) and runs with `npm run all`.
 
-All findings below are for `@excalidraw/excalidraw` 0.18.0, React 19.0.0 and Chromium from Playwright 1.63.0, on Node 22.
+All findings below were made with `@excalidraw/excalidraw` 0.18.0, React 19.0.0 and Chromium from Playwright 1.63.0, on Node 22. The spike was run again with 0.18.1 (a security release) and every finding still holds, and the golden files did not change.
 
 ## ADR-001: Emit Excalidraw element JSON directly
 

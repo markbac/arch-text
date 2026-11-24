@@ -189,7 +189,7 @@ Compared with `canvas.measureText` in the real editor, Nunito was off by 0.32 px
 
 ### Consequences
 
-- All three fonts match the browser to within 0.05 px; `test/editor.test.ts` checks a set of labels at 16, 20 and 28 px in each.
+- All three fonts match the browser to within 0.05 px; `test/editor.test.ts` checks a set of labels at 16, 20 and 28 px in each. Headless Chromium on Linux rounds each glyph's advance to a whole pixel, so there the check skips itself; CI runs it on Windows.
 - `test/build.test.ts` fails if `src/font-ranges.ts` no longer matches the installed package, so an Excalidraw upgrade cannot change measurement silently. Run the script again after upgrading.
 
 ## ADR-008: Style layers merge property by property, class rules in source order

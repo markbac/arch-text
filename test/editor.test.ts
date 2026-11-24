@@ -195,7 +195,16 @@ describe('SVG icons as Excalidraw stores them', () => {
 
 describe('text measurement matches the browser', () => {
   const LABELS = ['HES', 'Comms module', 'Identity Provider (OIDC)', 'Café payments', 'Zürich data centre', 'iiiiiiiiii', 'WWWWWWWWWW', 'A, B & C -> D'];
-  it.each(Object.entries(FONTS))('%s (%s)', async (_name, font) => {
+  for (const [name, font] of Object.entries(FONTS)) it(`${name} (${font.family})`, async ({ skip }) => {
+    // Headless Chromium on Linux rounds each glyph's advance to a whole pixel, so its widths are
+    // not exact there and cannot check ours. Excalidraw in a desktop browser does not round.
+    const rounds = await page.evaluate(async () => {
+      await document.fonts.load('20px Excalifont', 'i');
+      const ctx = document.createElement('canvas').getContext('2d')!;
+      ctx.font = '20px Excalifont';
+      return ['i', 'ii', 'HES', 'Comms module'].every((t) => Number.isInteger(ctx.measureText(t).width));
+    });
+    if (rounds) skip();
     for (const size of [16, 20, 28]) {
       // Excalidraw registers its font faces, with their unicode ranges, in the editor page.
       const css = font.family === 'ComicShanns' ? '"Comic Shanns"' : font.family;

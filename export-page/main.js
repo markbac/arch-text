@@ -15,7 +15,7 @@ function prepare(scene, options) {
       exportBackground: options.background,
       exportEmbedScene: true,
       exportScale: options.scale,
-      exportWithDarkMode: false,
+      exportWithDarkMode: options.dark,
     },
     files: scene.files ?? {},
     exportPadding: options.padding,

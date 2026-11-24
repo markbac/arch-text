@@ -118,30 +118,145 @@ boundary Site B
 
 ## Attributes
 
-Attributes go in square brackets after an element, an edge or a style rule, separated by commas. A flag has no value; `key: value` sets one; further values after a comma belong to the last key: `[class: external, legacy]`.
+Attributes go in square brackets after an element, an edge or a style rule, separated by commas. A flag has no value; `key: value` sets one; further values after a comma belong to the last key: `[class: external, legacy]`. Quote a value that contains a comma or a `]`.
 
-| Attribute | Applies to | Status |
-|---|---|---|
-| `doc: "..."` | Elements, edges | Stored; not drawn yet |
-| `icon: <name or path>`, `icon-only` | Elements | Phase 4 ([#6](https://github.com/markbac/arch-text/issues/6)); ignored with warning AT004 for now |
-| `class`, `fill`, `fill-style`, `stroke`, `stroke-width`, `stroke-style`, `rough`, `rounded`, `opacity`, `font`, `font-size`, `text-color`, `text-align`, `color` | Elements, edges | Phase 4 ([#11](https://github.com/markbac/arch-text/issues/11)); ignored with warning AT004 for now |
+| Attribute | Elements | Edges | Style rules | Meaning |
+|---|---|---|---|---|
+| `doc: "..."` | Yes | Yes | No | A description. Stored, not drawn. |
+| `class: <name>, ...` | Yes | Yes | No | Classes for `style .<name>` rules. |
+| `icon: <name or path>`, `icon-only` | Yes | No | Yes | See [Icons](#icons). |
+| `fill`, `fill-style`, `rounded`, `opacity`, `text-align` | Yes | No | Yes | See [Styling](#styling). |
+| `stroke`, `stroke-width`, `stroke-style`, `rough`, `font`, `font-size`, `text-color` | Yes | Yes | Yes | See [Styling](#styling). |
 
-Any other attribute is ignored with warning AT013.
+An attribute where it has no meaning, such as `fill` on an edge or anything but `doc` and `class` on a group, is ignored with warning AT024. Any other attribute is ignored with warning AT013.
 
-## Directives and style rules
+## Directives
 
 These go at the top level (AT020 inside a block).
 
 | Statement | Meaning |
 |---|---|
 | `title "..."` | The diagram's name. |
-| `option direction right` | Lay out left to right (the default). |
-| `option direction down` | Lay out top to bottom. |
-| `option sketch \| font \| colors <value>` | Phase 4 ([#11](https://github.com/markbac/arch-text/issues/11)); ignored with warning AT004 for now. |
-| `use icons <file.excalidrawlib>` | Phase 4 ([#6](https://github.com/markbac/arch-text/issues/6)); ignored with warning AT004 for now. |
-| `style <kind or .class> [attrs]` | Phase 4 ([#11](https://github.com/markbac/arch-text/issues/11)); ignored with warning AT004 for now. |
+| `option direction right \| down` | Lay out left to right (the default) or top to bottom. |
+| `option sketch clean \| artist \| cartoon` | How hand-drawn lines look: Excalidraw's roughness 0, 1 (the default) or 2. |
+| `option font hand \| normal \| code` | The font for every label: Excalifont (the default), Nunito or Comic Shanns, the three in Excalidraw's font picker. |
+| `option colors none \| types` | `types` fills each kind of element with its own colour; `none` (the default) fills nothing. `colours` is accepted too. |
+| `use icons <file.excalidrawlib>` | Load an icon library. See [Icons](#icons). |
+| `style <kind or .class> [attrs]` | A style rule. See [Styling](#styling). |
 
-Any other option is error AT019.
+Any other option, or a value an option does not take, is error AT019.
+
+## Styling
+
+```archt
+option sketch clean
+option colors types
+
+style edge [stroke: gray-4]
+style .external [fill: gray-1, stroke-style: dashed]
+style .critical [stroke: red, stroke-width: bold]
+
+system Payments [class: external, critical]
+system Orders [fill: orange, font: code]
+Orders -> Payments: card [stroke: blue]
+```
+
+![examples/styling.archt](images/styling.png)
+
+Excalidraw has a fixed set of style properties and no rich text, so arch-text exposes those properties and nothing else. The look of each element and edge is worked out in four layers. Each layer overrides the one before it, property by property:
+
+1. **Options.** Excalidraw's defaults, then `option sketch`, `option font` and `option colors`, then the look of each kind: boundaries are dashed and grey with the title at the top left, components are rounded, and `..>` edges are dashed.
+1. **Kind rules.** `style system [...]`, `style component [...]`, `style actor [...]`, `style datastore [...]`, `style boundary [...]`, and `style edge [...]` for every edge. Rules for the same kind apply in source order.
+1. **Class rules.** `style .<class> [...]` for each element or edge with that class. Rules apply **in source order**, not in the order the classes are listed on the element: with `[class: external, critical]`, a property set by both `.external` and `.critical` takes the value of whichever rule is written later in the file. Edges take only the edge properties from a class rule, so one class can style both elements and edges.
+1. **Attributes** on the element or edge itself.
+
+`style group` and any other selector are error AT025.
+
+### Style attributes
+
+| Attribute | Values | Excalidraw property |
+|---|---|---|
+| `fill` | A colour (the default is `transparent`) | `backgroundColor` |
+| `fill-style` | `solid` (the default), `hachure`, `cross-hatch`, `zigzag` | `fillStyle` |
+| `stroke` | A colour | `strokeColor` |
+| `stroke-width` | `thin` (1), `bold` (2, the default), `extra-bold` (4), or px from 0.5 to 20 | `strokeWidth` |
+| `stroke-style` | `solid`, `dashed`, `dotted` | `strokeStyle` |
+| `rough` | `clean`, `artist`, `cartoon`, or 0, 1, 2 | `roughness` |
+| `rounded` | A flag; `rounded: no` turns it off (components are rounded by default) | `roundness` |
+| `opacity` | 0 to 100 (the default), also `60%` | `opacity`, of the shape, its label and its icon |
+| `font` | `hand`, `normal`, `code` | the label's `fontFamily` |
+| `font-size` | `small` (16), `medium` (20), `large` (28), `huge` (36), or px from 6 to 200 | the label's `fontSize` |
+| `text-color` | A colour | the label's `strokeColor` |
+| `text-align` | `left`, `center`, `right` | the label's `textAlign` |
+
+Element labels default to 20 px and edge labels to 16 px. Labels are measured in their own font and size, so boxes, containers and the space ELK leaves for edge labels always fit them.
+
+On an actor, `stroke` and `fill` paint the stick figure (the fill is its head). On a datastore they paint the cylinder. The box that arrows bind to stays invisible.
+
+### Colours
+
+| Form | Example | Meaning |
+|---|---|---|
+| Hex | `#1F4E79`, `#abc`, `#1f4e7980` | As written (lower case) |
+| Name | `blue` | A colour from Excalidraw's palette, in the shade its colour picker uses: the second for `fill`, the fifth for `stroke` and `text-color` |
+| Name and shade | `blue-1` to `blue-5` | A shade of that colour, lightest first |
+| Special | `transparent` (or `none`), `black`, `white` | Excalidraw's own black is `#1e1e1e` |
+
+The names are `gray` (or `grey`), `red`, `pink`, `grape`, `violet` (or `purple`), `blue`, `cyan`, `teal`, `green`, `yellow`, `orange` and `bronze`. A value that is not a colour is ignored with warning AT023, which lists them.
+
+With `option colors types`, systems are blue, components green, datastores yellow and actors violet, in the second shade (the first for containers, so what they hold stands out). Boundaries and edges are not filled.
+
+### Plain-text labels
+
+A label is one Excalidraw text element, which has one font, size and colour. Markdown or HTML emphasis such as `**bold**`, `_italic_` or `<u>underline</u>` is drawn exactly as typed, so it gives warning AT022. Use `font`, `font-size` or `text-color` instead.
+
+## Icons
+
+```archt
+use icons ./icons/iot.excalidrawlib
+
+boundary Site [icon: gateway]
+  component Firmware [icon: chip]
+  system Edge router [icon: ./icons/router.svg]
+system Cloud [icon: cloud, icon-only]
+actor Engineer [icon: person]
+```
+
+![examples/icons.archt](images/icons.png)
+
+`[icon: ...]` gives an element an icon, either an item from an Excalidraw library or an image file. Icons can also come from style rules: `style .mcu [icon: chip]`.
+
+### Libraries
+
+`use icons <file>` loads an `.excalidrawlib` file. Both versions are read: version 2 (`libraryItems`, as Excalidraw saves today) and version 1 (`library`). Paths are relative to the `.archt` file. Any number of libraries can be loaded.
+
+- `[icon: <name>]` finds a library item by its name, ignoring case and repeated spaces. The first library loaded that has the name wins.
+- `[icon: <library>#<n>]` finds the *n*th item of a library by position, where `<library>` is the file name without `.excalidrawlib`: `iot#3`. Items without names, which includes every item in a version 1 library, are found this way.
+- Each use of an item is an independent copy, scaled to fit, with its own element and group IDs. Bindings inside the item, such as an arrow between two of its shapes or text bound to a box, point at the copy's own elements.
+- Library items carry shapes, lines and text, not images; an item with only images cannot be used.
+
+### Image files
+
+`[icon: ./path/file.svg]` uses an SVG, PNG or JPEG file, relative to the `.archt` file. A value is taken as a path when it contains `/` or `\` or ends in a file extension. The image is embedded in the scene's `files` as a data URL, keyed by a hash of its content, so an image used several times is stored once. Its size comes from the SVG's `viewBox` (or `width` and `height`), or from the PNG or JPEG header, and it keeps its aspect ratio.
+
+SVG icons stay vectors: exported SVGs embed them as SVG, so they stay sharp at any zoom. They are stored as Excalidraw's editor stores them, with a `width` and `height` added from the `viewBox` where missing, which keeps them from being drawn clipped.
+
+### Placement
+
+| Element | Icon box | Where |
+|---|---|---|
+| `system`, `component`, `datastore` | 40 px | Inside the shape, above the label, with the shape grown to make room |
+| Any of those with `icon-only` | 64 px | The icon is the node: no shape is drawn, and the label sits beneath it |
+| `actor` | 64 px | In place of the stick figure, with the label beneath |
+| `boundary`, and any element holding others | 24 px | In the top-right corner, beside the title |
+
+The node's box, label and icon are one Excalidraw group, so they move together. Arrows always bind to the node's box, which is invisible for `icon-only` nodes and actors, so they stay attached when the node is moved.
+
+`icon-only` without an icon, or on a container or boundary, is ignored with warning AT024.
+
+### Icon diagnostics
+
+A library that cannot be read is error AT026, at its `use` line. An icon that names nothing is error AT027: for a library name, the hint lists the names there are; for a missing image, it lists the images in that folder.
 
 ## Grammar
 
@@ -164,7 +279,7 @@ ref          = id | name ;
 directive    = "title" , text
              | "option" , WORD , WORD
              | "use" , WORD , text ;
-style        = "style" , ( kind | "." , WORD ) , attrs ;
+style        = "style" , ( kind | "edge" | "." , WORD ) , attrs ;   (* not "group" *)
 (* Directives and style rules only at the top level. *)
 
 attrs        = "[" , attr , { "," , attr } , "]" ;
@@ -190,7 +305,7 @@ Errors stop `build` writing output; warnings do not. Each comes with the line, a
 | AT001 | error | Indentation uses a tab |
 | AT002 | error | An indented line with no block to belong to |
 | AT003 | error | A statement needs a name (an element, `title`, `@id`, an edge end) |
-| AT004 | warning | A feature planned for a later phase; ignored for now |
+| AT004 | — | No longer reported. It marked features planned for later phases, which now all exist |
 | AT005 | error | A line that is not a statement |
 | AT006 | error | A string with no closing quote |
 | AT007 | error | The same `@id` on two elements |
@@ -208,3 +323,9 @@ Errors stop `build` writing output; warnings do not. Each comes with the line, a
 | AT019 | error | An unknown option, or a value an option does not take |
 | AT020 | error | `title`, `option`, `use` or `style` inside a block |
 | AT021 | error | A `[` with no closing `]` |
+| AT022 | warning | Bold, italic or underline markup in a label, which is drawn as typed |
+| AT023 | warning | An attribute value the attribute does not take, which is ignored (the hint lists what it takes) |
+| AT024 | warning | An attribute where it has no meaning, such as `fill` on an edge or `icon-only` without an icon, which is ignored |
+| AT025 | error | A `style` rule for something that cannot be styled, such as `group` |
+| AT026 | error | `use` of something other than `icons`, or an icon library that cannot be read |
+| AT027 | error | An icon that names no library item (the hint lists them) or no image file (the hint lists the images in that folder) |

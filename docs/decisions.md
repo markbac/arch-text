@@ -171,6 +171,67 @@ ELK places labels inline (on the edge). The emitter adds a point to the arrow wh
 - Labels land where ELK made room, and `test/build.test.ts` checks that no label overlaps a shape or another label.
 - Arrows with labels carry a few extra points on straight stretches; Excalidraw shows them as handles when the arrow is selected.
 
+## ADR-007: Choose each character's font file by Excalidraw's unicode ranges
+
+**Status:** accepted (phase 4)
+
+### Context
+
+ADR-002 measures text from Excalidraw's font files, using for each character the first file, in file name order, that has its glyph. That was checked against the browser for Excalifont only. Phase 4 adds Nunito and Comic Shanns, the other two fonts in Excalidraw's picker.
+
+### Findings
+
+Compared with `canvas.measureText` in the real editor, Nunito was off by 0.32 px at 16 px for `A, B & C -> D`. Nunito's Cyrillic file has the basic Latin punctuation too, and it comes first by name, but the browser never uses it for those characters. Excalidraw declares a `unicode-range` for every file, and the browser picks by range: where ranges overlap, the last file declared is tried first, as CSS specifies.
+
+### Decision
+
+`scripts/font-ranges.mjs` reads the ranges Excalidraw declares and writes them to `src/font-ranges.ts`. Measurement picks each character's file as the browser does: the last declared file whose range covers the character and that has the glyph.
+
+### Consequences
+
+- All three fonts match the browser to within 0.05 px; `test/editor.test.ts` checks a set of labels at 16, 20 and 28 px in each.
+- `test/build.test.ts` fails if `src/font-ranges.ts` no longer matches the installed package, so an Excalidraw upgrade cannot change measurement silently. Run the script again after upgrading.
+
+## ADR-008: Style layers merge property by property, class rules in source order
+
+**Status:** accepted (phase 4, [#11](https://github.com/markbac/arch-text/issues/11))
+
+### Context
+
+An element's look can come from options, rules for its kind, rules for its classes and its own attributes, and two classes can set the same property.
+
+### Decision
+
+The layers apply in that order, each overriding only the properties it sets. Class rules apply in the order they are written in the file, not the order the classes are listed on the element, as in CSS: the order of `[class: a, b]` is easy to vary between elements, while one place in the file decides which rule wins. Edges take only the edge properties of a class rule, so one class can style elements and edges.
+
+Every property maps one to one onto an Excalidraw property (`fill` is `backgroundColor`, `rough` is `roughness`, and so on), and named colours use Excalidraw's palette in the shade its colour picker chooses, so a diagram reopened in Excalidraw shows the same values in its own panels.
+
+### Consequences
+
+- A precedence table in `test/style.test.ts` covers each layer and the two-class case.
+- The defaults are unchanged from phase 3, so unstyled diagrams build exactly as before.
+
+## ADR-009: Icons are grouped copies; arrows bind to the node's own box
+
+**Status:** accepted (phase 4, [#6](https://github.com/markbac/arch-text/issues/6))
+
+### Context
+
+Arrows must stay bound when nodes move, labels must stay bound to their nodes, and a library item can be used many times in one diagram.
+
+### Decision
+
+- Each use of a library item is a copy with IDs made from the node's ID (`firmware:icon:0` ...), so output stays deterministic and copies never share IDs. Bindings inside the item are pointed at the copy.
+- The node's box, its label and its icon form one Excalidraw group (`<id>:shape`), the same as the parts of actors and datastores, so they move together.
+- Arrows bind to the node's box. With `icon-only`, and for actors, the box is invisible, so arrows never bind to the icon, which may be an image or many elements.
+- Excalidraw draws a bound label straight after its container, whatever the file's order. For actors and datastores, whose parts may now be filled, the invisible box and its label come after the parts, or a filled cylinder would hide its label.
+- SVG files are embedded as Excalidraw's editor stores them (its `normalizeSVG`: just the `<svg>` element, with `width`, `height` and `viewBox` added where missing). That also fixes the clipped `viewBox`-only icons found in the spike, and the editor does not rewrite and re-version the file when the scene is opened.
+
+### Consequences
+
+- `test/editor.test.ts` opens every example, including the icon ones, in the real editor and moves each shape with arrows; it also saves the scene and checks every style property and image is unchanged, and checks that the editor keeps a set of SVGs byte for byte.
+- The golden files for examples with actors and datastores changed order (not content) in phase 4.
+
 ## Other findings from the spike
 
 These do not need an ADR, but later issues depend on them.
@@ -179,6 +240,6 @@ These do not need an ADR, but later issues depend on them.
 
     ![The arrow still attached after dragging Platform](images/spike-binding-drag.png)
 
-- **SVG icons need a width and height ([#6](https://github.com/markbac/arch-text/issues/6)).** An SVG with only a `viewBox` is drawn clipped and too large, in both SVG and PNG exports. Set `UNSIZED=1` when running `spike/make-scene.mjs` to reproduce it. The icon loader must add `width` and `height` from the `viewBox` when they are missing.
+- **SVG icons need a width and height ([#6](https://github.com/markbac/arch-text/issues/6)).** An SVG with only a `viewBox` is drawn clipped and too large, in both SVG and PNG exports. Set `UNSIZED=1` when running `spike/make-scene.mjs` to reproduce it. The icon loader adds `width` and `height` from the `viewBox` when they are missing (ADR-009).
 - **npm skipped Rollup's native binary ([#9](https://github.com/markbac/arch-text/issues/9)).** In this environment `npm install` left out `@rollup/rollup-linux-x64-gnu`, which Vite needs, and the lockfile had no entry for it ([npm/cli#4828](https://github.com/npm/cli/issues/4828)). The spike lists it under `optionalDependencies` so it installs on Linux and is skipped elsewhere. CI on Windows will need the matching Windows package listed the same way.
 - **Timing.** For the two-box scene, once Chromium was running: SVG about 270 ms, PNG about 30 ms. The SVG ran first; I did not measure how much of its time is one-off font loading.

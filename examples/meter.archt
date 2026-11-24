@@ -1,0 +1,19 @@
+title "Smart metering"
+option colors types
+use icons ./icons/iot.excalidrawlib
+
+# The simple example from the plan (issue #1), with colours by type and a library icon.
+boundary Meter
+  component Firmware [icon: chip]
+  component Comms module @comms
+
+system HES
+system Platform
+actor Operator
+datastore Readings
+
+Firmware -> @comms: Meter data
+@comms -> HES: DLMS/COSEM
+HES -> Platform: Events
+Platform -> Readings
+Operator ..> Platform: Alerts

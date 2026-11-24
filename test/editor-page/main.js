@@ -5,7 +5,9 @@ window.EXCALIDRAW_ASSET_PATH = new URL('./', window.location.href).href;
 
 const React = await import('react');
 const { createRoot } = await import('react-dom/client');
-const { Excalidraw } = await import('@excalidraw/excalidraw');
+const { Excalidraw, serializeAsJSON } = await import('@excalidraw/excalidraw');
+// For tests that compare arch-text's output with Excalidraw's own.
+Object.assign(window, { serializeAsJSON });
 
 window.api = await new Promise((resolve) => {
   createRoot(document.getElementById('root')).render(

@@ -27,7 +27,7 @@ export const Codes = {
   indent: 'AT002',
   /** A statement that needs a name has none. */
   missingName: 'AT003',
-  /** A feature that is planned but not supported yet: a warning, and the feature is ignored. */
+  /** No longer reported: it marked features planned for a later phase, all of which now exist. */
   notYet: 'AT004',
   /** A line that is not a statement. */
   unknownStatement: 'AT005',
@@ -63,6 +63,18 @@ export const Codes = {
   notTopLevel: 'AT020',
   /** A `[` with no closing `]`. */
   unclosedAttrs: 'AT021',
+  /** Bold, italic or underline markup in a label, which Excalidraw draws as typed. */
+  richText: 'AT022',
+  /** An attribute value that the attribute does not take (ignored). */
+  badValue: 'AT023',
+  /** An attribute where it has no meaning, such as `fill` on an edge (ignored). */
+  notApplicable: 'AT024',
+  /** A `style` rule for something that cannot be styled. */
+  badSelector: 'AT025',
+  /** A `use` statement whose file cannot be read, or that uses something other than icons. */
+  badLibrary: 'AT026',
+  /** An `icon` naming no library item or no image file. */
+  unknownIcon: 'AT027',
 } as const;
 
 export function error(code: string, message: string, range: Range, hint?: string): Diagnostic {

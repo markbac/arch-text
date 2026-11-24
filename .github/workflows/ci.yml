@@ -50,6 +50,20 @@ jobs:
       - run: npm run build
       - run: npm test
 
+      - name: Install the packed tarball and render with it
+        run: |
+          mkdir "$RUNNER_TEMP/pack"
+          npm pack --pack-destination "$RUNNER_TEMP/pack"
+          npm install -g --no-audit --no-fund --prefix "$RUNNER_TEMP/global" "$RUNNER_TEMP"/pack/arch-text-*.tgz
+          bin="$RUNNER_TEMP/global/bin"
+          [ "$RUNNER_OS" = Windows ] && bin="$RUNNER_TEMP/global"
+          test "$("$bin/arch-text" --version)" = "$(node -p "require('./package.json').version")"
+          mkdir "$RUNNER_TEMP/smoke" && cp -r examples/. "$RUNNER_TEMP/smoke/"
+          cd "$RUNNER_TEMP/smoke"
+          "$bin/arch-text" render "*.archt" -f svg,png
+          "$bin/arch-text" render "*.archt" -f svg,png --check
+          ls -l *.svg *.png
+
       - name: Render the examples with the CLI
         run: |
           node dist/cli.js build "examples/*.archt" -o out/
@@ -62,3 +76,42 @@ jobs:
         with:
           name: examples
           path: out/
+
+  docker:
+    name: Docker image and action
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the image
+        run: docker build -t arch-text:ci .
+      - name: Render every example offline, as another user, twice
+        run: bash scripts/docker-check.sh arch-text:ci
+
+      # The sample docs repository's committed SVG must be exactly what the image makes.
+      - name: The action in check mode, on the sample docs repository
+        uses: ./
+        with:
+          image: arch-text:ci
+          working-directory: examples/docs-repo
+      - name: The action in write mode
+        uses: ./
+        with:
+          mode: write
+          image: arch-text:ci
+          working-directory: examples/docs-repo
+      - name: Write mode left no diff
+        run: git diff --exit-code
+
+      - name: Make the sample out of date
+        run: echo "system Billing" >> examples/docs-repo/docs/architecture/platform.archt
+      - id: stale
+        name: The action in check mode, on the stale sample
+        uses: ./
+        continue-on-error: true
+        with:
+          image: arch-text:ci
+          working-directory: examples/docs-repo
+      - name: Check mode failed and reported the change
+        run: |
+          test "${{ steps.stale.outcome }}" = failure
+          test "${{ steps.stale.outputs.changed }}" = true

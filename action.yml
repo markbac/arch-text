@@ -1,0 +1,131 @@
+name: arch-text diagrams
+description: Regenerate the SVG and PNG diagrams of a repository's .archt files, or check they are up to date.
+author: markbac
+branding:
+  icon: layers
+  color: blue
+
+inputs:
+  mode:
+    description: >
+      check: fail if any output is missing or out of date, writing nothing (for pull requests).
+      write: regenerate outputs, leaving them uncommitted for later steps.
+      commit: regenerate outputs, then commit and push any that changed.
+    default: check
+  paths:
+    description: >
+      Git pathspecs, one per line, choosing which tracked (or untracked, not ignored) files to
+      render. Only files ending in .archt are used.
+    default: '*.archt'
+  formats:
+    description: Outputs written beside each .archt file, separated by commas, from svg, png and excalidraw.
+    default: svg
+  args:
+    description: More options for arch-text render, such as --scale 2 --dark.
+    default: ''
+  working-directory:
+    description: The folder to search and render in, relative to the workspace.
+    default: .
+  image:
+    description: >
+      The arch-text Docker image. By default the one matching the action's own tag
+      (markbac/arch-text@v0.1.0 uses ghcr.io/markbac/arch-text:0.1.0), else :latest.
+    default: ''
+  commit-message:
+    description: The commit message in commit mode.
+    default: Regenerate architecture diagrams
+
+outputs:
+  changed:
+    description: true when outputs were missing or out of date (and, outside check mode, rewritten).
+    value: ${{ steps.render.outputs.changed }}
+  files:
+    description: The .archt files rendered, one per line.
+    value: ${{ steps.render.outputs.files }}
+
+runs:
+  using: composite
+  steps:
+    - id: render
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        MODE: ${{ inputs.mode }}
+        PATHS: ${{ inputs.paths }}
+        FORMATS: ${{ inputs.formats }}
+        ARGS: ${{ inputs.args }}
+        IMAGE: ${{ inputs.image }}
+        ACTION_REF: ${{ github.action_ref }}
+        # Inputs reach the script only through the environment, so no value can change the script.
+        COMMIT_MESSAGE: ${{ inputs.commit-message }}
+      run: |
+        set -euo pipefail
+        set -f  # pathspecs are for git, not the shell
+        if [ "$RUNNER_OS" != Linux ]; then
+          echo "::error::The arch-text action runs a Linux container, so it needs a Linux runner, such as ubuntu-latest."
+          exit 1
+        fi
+        case "$MODE" in check|write|commit) ;; *) echo "::error::mode is check, write or commit, not '$MODE'."; exit 1 ;; esac
+        if [ -z "$IMAGE" ]; then
+          if [[ "$ACTION_REF" =~ ^v([0-9]+\.[0-9]+\.[0-9]+.*)$ ]]; then IMAGE="ghcr.io/markbac/arch-text:${BASH_REMATCH[1]}"; else IMAGE=ghcr.io/markbac/arch-text:latest; fi
+        fi
+
+        mapfile -t specs < <(printf '%s\n' "$PATHS" | sed '/^[[:space:]]*$/d')
+        mapfile -t files < <(git ls-files --cached --others --exclude-standard -- "${specs[@]}" | grep -E '\.archt$' | sort -u || true)
+        { echo 'files<<ARCH_TEXT_EOF'; printf '%s\n' "${files[@]}"; echo 'ARCH_TEXT_EOF'; } >> "$GITHUB_OUTPUT"
+        if [ "${#files[@]}" -eq 0 ]; then
+          echo "::notice::No .archt files match: $(printf '%s ' "${specs[@]}")"
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        echo "Rendering ${#files[@]} file(s) to $FORMATS with $IMAGE"
+
+        # Offline, as the runner's user so the outputs belong to it.
+        render() {
+          # shellcheck disable=SC2086 # ARGS is a list of options
+          docker run --rm --network none --user "$(id -u):$(id -g)" -v "$PWD:/work" -w /work \
+            "$IMAGE" render "${files[@]}" -f "$FORMATS" $ARGS "$@"
+        }
+        docker pull --quiet "$IMAGE" >/dev/null 2>&1 || docker image inspect "$IMAGE" >/dev/null
+
+        if [ "$MODE" = check ]; then
+          if render --check 2> >(tee "$RUNNER_TEMP/arch-text.log" >&2); then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Diagrams out of date"
+            echo
+            grep -E '^(out of date|missing): ' "$RUNNER_TEMP/arch-text.log" | sed 's/^/- /' || true
+            echo
+            echo "Regenerate them with \`arch-text render\`, or run this action with \`mode: commit\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+        fi
+
+        render
+        outputs=()
+        IFS=',' read -ra fmts <<< "$FORMATS"
+        for f in "${files[@]}"; do
+          for fmt in "${fmts[@]}"; do outputs+=("${f%.archt}.$(echo "$fmt" | tr -d '[:space:]')"); done
+        done
+        if [ -z "$(git status --porcelain -- "${outputs[@]}")" ]; then
+          echo "changed=false" >> "$GITHUB_OUTPUT"
+          echo "All diagrams were up to date."
+          exit 0
+        fi
+        echo "changed=true" >> "$GITHUB_OUTPUT"
+        { echo "### Diagrams regenerated"; echo; git status --porcelain -- "${outputs[@]}" | sed 's/^.. /- /'; } >> "$GITHUB_STEP_SUMMARY"
+        [ "$MODE" = write ] && exit 0
+
+        branch="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+        if [ "${GITHUB_REF_TYPE:-branch}" != branch ] && [ -z "${GITHUB_HEAD_REF:-}" ]; then
+          echo "::error::commit mode pushes to a branch, but this run is for $GITHUB_REF."
+          exit 1
+        fi
+        git add -- "${outputs[@]}"
+        git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+          commit --quiet -m "$COMMIT_MESSAGE"
+        git push origin "HEAD:refs/heads/$branch"
+        echo "Pushed the regenerated diagrams to $branch."

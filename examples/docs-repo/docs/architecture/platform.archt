@@ -1,0 +1,17 @@
+title "Metering platform"
+option colors types
+
+style .external [fill: gray-1, stroke-style: dashed]
+
+actor Operator
+system Head-end @hes [class: external]
+
+boundary Platform
+  component Ingest
+  component Rules
+  datastore Readings
+  Ingest -> Readings
+  Ingest -> Rules: events
+
+@hes -> Ingest: DLMS/COSEM
+Operator ..> Rules: alerts

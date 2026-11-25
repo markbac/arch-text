@@ -1,0 +1,22 @@
+# Regenerates the diagrams of every .archt file on pushes to main, and checks them on pull
+# requests. Copy this into a docs repository's .github/workflows/ (see docs/docs-repo.md).
+name: Diagrams
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  diagrams:
+    runs-on: ubuntu-latest
+    permissions:
+      # Commit mode pushes the regenerated diagrams back to the branch.
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: markbac/arch-text@v0.1.0
+        with:
+          # On main, commit what changed; on a pull request, fail if anything is out of date.
+          mode: ${{ github.event_name == 'push' && 'commit' || 'check' }}
+          formats: svg

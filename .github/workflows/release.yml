@@ -1,0 +1,98 @@
+# Releases arch-text from a version tag (docs/releasing.md): the tarball on a GitHub release,
+# and the Docker image on GHCR. Run by hand (workflow_dispatch) it builds and checks both
+# without publishing anything.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tarball:
+    name: Tarball
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - id: version
+        name: Check the tag matches the package version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $version."
+            exit 1
+          fi
+      - run: npm ci
+      - run: npx playwright-core install --with-deps chromium
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+
+      - name: Pack
+        run: |
+          mkdir release
+          npm pack --pack-destination release
+          (cd release && sha256sum arch-text-*.tgz > SHA256SUMS)
+          cat release/SHA256SUMS
+      - name: Install the tarball globally and render with it
+        run: |
+          npm install -g --no-audit --no-fund ./release/arch-text-*.tgz
+          test "$(arch-text --version)" = "${{ steps.version.outputs.version }}"
+          mkdir "$RUNNER_TEMP/smoke" && cp -r examples/. "$RUNNER_TEMP/smoke/"
+          cd "$RUNNER_TEMP/smoke"
+          arch-text render "*.archt" -f svg,png
+          arch-text render "*.archt" -f svg,png --check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: release/
+      - name: Publish the GitHub release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" release/* --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
+
+  image:
+    name: Docker image
+    needs: tarball
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/arch-text
+      VERSION: ${{ needs.tarball.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the image
+        run: docker build -t arch-text:release .
+      - name: Render every example offline, as another user, twice
+        run: bash scripts/docker-check.sh arch-text:release
+      - name: Log in to GHCR
+        if: github.ref_type == 'tag'
+        run: echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Push the image as the version, and for a full release its minor series and latest
+        if: github.ref_type == 'tag'
+        run: |
+          image=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
+          tags=("$VERSION")
+          # A pre-release such as 0.2.0-rc.1 gets only its own tag.
+          [[ "$VERSION" == *-* ]] || tags+=("${VERSION%.*}" latest)
+          for tag in "${tags[@]}"; do
+            docker tag arch-text:release "$image:$tag"
+            docker push --quiet "$image:$tag"
+            echo "Pushed $image:$tag" >> "$GITHUB_STEP_SUMMARY"
+          done

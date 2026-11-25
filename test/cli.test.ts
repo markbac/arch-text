@@ -98,6 +98,74 @@ describe('arch-text export', () => {
   });
 });
 
+describe('arch-text render', () => {
+  const mtime = (f: string) => fs.statSync(at(f)).mtimeMs;
+
+  it('writes an SVG beside each input by default', async () => {
+    fs.mkdirSync(at('docs'));
+    writeFile('a.archt', GOOD);
+    writeFile('docs/b.archt', GOOD);
+    expect(await main(['render', `${dir.replace(/\\/g, '/')}/**/*.archt`])).toBe(0);
+    expect(fs.readFileSync(at('a.svg'), 'utf8')).toMatch(/^<svg/);
+    expect(fs.existsSync(at('docs', 'b.svg'))).toBe(true);
+    expect(fs.existsSync(at('a.excalidraw'))).toBe(false);
+  });
+
+  it('writes every format asked for, the same as build and export do', async () => {
+    writeFile('a.archt', GOOD);
+    expect(await main(['render', at('a.archt'), '-f', 'svg, png,excalidraw'])).toBe(0);
+    expect(fs.readFileSync(at('a.png')).subarray(1, 4).toString()).toBe('PNG');
+    await main(['build', at('a.archt'), '-o', at('built.excalidraw')]);
+    expect(fs.readFileSync(at('a.excalidraw'), 'utf8')).toBe(fs.readFileSync(at('built.excalidraw'), 'utf8'));
+  });
+
+  it('leaves outputs that are already up to date untouched', async () => {
+    writeFile('a.archt', GOOD);
+    await main(['render', at('a.archt'), '-f', 'svg,png']);
+    const before = [mtime('a.svg'), mtime('a.png')];
+    const bytes = [fs.readFileSync(at('a.svg')), fs.readFileSync(at('a.png'))];
+    stderr = '';
+    expect(await main(['render', at('a.archt'), '-f', 'svg,png'])).toBe(0);
+    expect([mtime('a.svg'), mtime('a.png')]).toEqual(before);
+    expect([fs.readFileSync(at('a.svg')), fs.readFileSync(at('a.png'))]).toEqual(bytes);
+    expect(stderr).not.toContain('->');
+  });
+
+  it('with --check, passes when outputs are up to date', async () => {
+    writeFile('a.archt', GOOD);
+    await main(['render', at('a.archt'), '-f', 'svg,png,excalidraw']);
+    expect(await main(['render', at('a.archt'), '-f', 'svg,png,excalidraw', '--check'])).toBe(0);
+  });
+
+  it('with --check, lists missing and stale outputs, exits 1, and writes nothing', async () => {
+    writeFile('a.archt', GOOD);
+    await main(['render', at('a.archt')]);
+    writeFile('a.archt', `${GOOD}system C\n`);
+    const svg = fs.readFileSync(at('a.svg'));
+    expect(await main(['render', at('a.archt'), '-f', 'svg,png', '--check'])).toBe(1);
+    expect(stderr).toContain(`out of date: ${at('a.svg')}`);
+    expect(stderr).toContain(`missing: ${at('a.png')}`);
+    expect(stderr).toContain('2 diagram outputs are out of date');
+    expect(fs.readFileSync(at('a.svg'))).toEqual(svg);
+    expect(fs.existsSync(at('a.png'))).toBe(false);
+  });
+
+  it('exits 1 for an input with errors, still rendering the others', async () => {
+    writeFile('bad.archt', 'system A\nA -> B\n');
+    writeFile('good.archt', GOOD);
+    expect(await main(['render', at('bad.archt'), at('good.archt')])).toBe(1);
+    expect(stderr).toContain('AT008');
+    expect(fs.existsSync(at('good.svg'))).toBe(true);
+    expect(fs.existsSync(at('bad.svg'))).toBe(false);
+  });
+
+  it('exits 2 for a format it cannot write', async () => {
+    writeFile('a.archt', GOOD);
+    expect(await main(['render', at('a.archt'), '-f', 'svg,gif'])).toBe(2);
+    expect(await main(['render', at('a.archt'), '-f', ','])).toBe(2);
+  });
+});
+
 describe('arch-text', () => {
   it('prints help and the version', async () => {
     expect(await main(['--help'])).toBe(0);

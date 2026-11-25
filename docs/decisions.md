@@ -232,6 +232,31 @@ Arrows must stay bound when nodes move, labels must stay bound to their nodes, a
 - `test/editor.test.ts` opens every example, including the icon ones, in the real editor and moves each shape with arrows; it also saves the scene and checks every style property and image is unchanged, and checks that the editor keeps a set of SVGs byte for byte.
 - The golden files for examples with actors and datastores changed order (not content) in phase 4.
 
+## ADR-010: Distribute as a tarball, an image and a composite action around `render`
+
+**Status:** accepted (phase 5, [#10](https://github.com/markbac/arch-text/issues/10))
+
+### Context
+
+Docs repositories should regenerate diagrams on every commit, or fail when they are stale, without installing Chromium each time. The plan allowed a reusable workflow or a composite action.
+
+### Decision
+
+- **`arch-text render`** builds and exports in one step, beside each source, writing a file only when its bytes change; `--check` writes nothing and fails on any difference. A docs repository needs no more than this.
+- **Release tarballs** from `npm pack`, attached to a GitHub release. The Docker image installs the same tarball, so the image and the tarball cannot drift.
+- **The image** holds only Chromium's headless shell, which is all headless export runs (1.28 GB, against 1.88 GB with full Chromium). It runs as any user, with `HOME` at `/tmp`, so `--user "$(id -u):$(id -g)"` leaves outputs owned by the caller.
+- **A composite action** (`action.yml` at the root), not a reusable workflow. It runs as steps in the caller's job, after the caller's own checkout. CI can also test it with `uses: ./` against an image built moments earlier: a reusable workflow runs on its own runner and could only pull a published image. The action picks the image tag from its own ref (`@v0.1.0` runs `:0.1.0`), so pinning one pins both.
+
+### Findings
+
+- SVG output from the Linux image is byte-identical to SVG made on Windows (the golden files), so `--check` agrees across platforms for SVG and `.excalidraw`. PNG is byte-identical between runs on one platform, but not across platforms. Docs recommend SVG, or making PNGs with the image.
+- `npm pack --pack-destination` does not create its folder.
+
+### Consequences
+
+- CI renders [examples/docs-repo](../examples/docs-repo/) with the image it builds, through the action, and fails if the committed SVG differs, so the sample always shows real output.
+- The image package's visibility on GHCR must be public for docs repositories to pull it; see [releasing.md](releasing.md).
+
 ## Other findings from the spike
 
 These do not need an ADR, but later issues depend on them.

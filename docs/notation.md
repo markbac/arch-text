@@ -39,6 +39,7 @@ The syntax follows [bpmn-text](https://github.com/markbac/bpmn-text): indentatio
 | Indentation | Spaces only (a tab is error AT001). Any deeper indentation than the line before opens a block under that line; a line must line up with the block it belongs to (AT014). Two spaces is the usual style. |
 | Comments | `#` to the end of the line, when at the start of the line or after a space, and not inside a string or `[...]`, so `[fill: #1F4E79]` works. |
 | Strings | `"..."` with escapes `\"`, `\\` and `\n` (a line break in a label). |
+| Line breaks | `<br>` (or `<br/>`) in any name or edge label, and `\n` in a bare one, break the line, as `\n` does in a string. Spaces around a break are dropped. A name with a break still matches in edges as if it were on one line. |
 | Bare names | Unquoted text up to the end of the line or the first of `@`, `[`, an edge operator, or (in an edge) `:`. Leading and trailing spaces are trimmed. |
 | IDs | `@` followed by a letter or `_`, then letters, digits, `_` or `-`. |
 | Blank lines | Ignored. They never end a block. |
@@ -130,6 +131,7 @@ Attributes go in square brackets after an element, an edge or a style rule, sepa
 | `class: <name>, ...` | Yes | Yes | No | Classes for `style .<name>` rules. |
 | `icon: <name or path>`, `icon-only` | Yes | No | Yes | See [Icons](#icons). |
 | `fill`, `fill-style`, `rounded`, `opacity`, `text-align` | Yes | No | Yes | See [Styling](#styling). |
+| `size`, `width`, `height` | Yes | No | Yes | See [Size](#size). |
 | `stroke`, `stroke-width`, `stroke-style`, `rough`, `font`, `font-size`, `text-color` | Yes | Yes | Yes | See [Styling](#styling). |
 
 An attribute where it has no meaning, such as `fill` on an edge or anything but `doc` and `class` on a group, is ignored with warning AT024. Any other attribute is ignored with warning AT013.
@@ -210,6 +212,39 @@ On an actor, `stroke` and `fill` paint the stick figure (the fill is its head). 
 The names are `gray` (or `grey`), `red`, `pink`, `grape`, `violet` (or `purple`), `blue`, `cyan`, `teal`, `green`, `yellow`, `orange` and `bronze`. A value that is not a colour is ignored with warning AT023, which lists them.
 
 With `option colors types`, systems are blue, components green, datastores yellow and actors violet, in the second shade (the first for containers, so what they hold stands out). Boundaries and edges are not filled.
+
+### Size
+
+```archt
+style actor [size: large]
+system Application unit [size: huge]
+component Buzzer [size: 160x80]
+datastore Readings [width: 300]
+boundary Board [size: 1200x600]
+```
+
+By default a box is sized to fit its label and kept to no more than 2:1: it grows taller rather than become a strip. A leaf's name wider than 12 times its font size (240 px at 20 px) is wrapped onto the fewest even lines that fit. A name with its own line breaks, and a container's title, are kept as written.
+
+| Value | Box |
+|---|---|
+| `small` | 120 x 60 px, the smallest box drawn |
+| `medium` | 200 x 100 px |
+| `large` | 320 x 160 px |
+| `huge` | 480 x 240 px |
+| `<width>x<height>` | Any size from 20 to 4000 px, such as `400x200` |
+| `auto` | Sized from the label, the default. Undoes a size from a style rule |
+
+`width` and `height` set one side, in px or `auto`. With only `width`, the height still keeps to 2:1. A size never makes a box smaller than its label needs.
+
+| Element | What a size does |
+|---|---|
+| `system`, `component`, `datastore` | Sets the box. It overrides the growth of a hub (see [Edges](#edges)) |
+| Any element holding others | Sets its least size; it still grows to hold its children |
+| `actor` | Sets the height of the stick figure (70 px usually, and never less); its width follows. `large` is a 160 px figure |
+| `icon-only` element, or an actor with an icon | Sets the height of the icon (64 px usually, and never less) |
+| `group` | Nothing, as a group is not drawn (AT024) |
+
+Sizes come from style rules like any other attribute, so `style .main [size: large]` sizes every element of that class.
 
 ### Plain-text labels
 

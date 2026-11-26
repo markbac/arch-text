@@ -26,6 +26,10 @@ const GROUP_PAD = 16;
 const PORT_GAP = 120;
 /** Arrows on one side that make a shape a hub: widened, with its arrows spread across the side. */
 const HUB = 4;
+/** A box sized from its label is no more than this many times as wide as it is tall. */
+const BOX_RATIO = 2;
+/** Names wider than this many times their font size are wrapped onto even lines: 240 px at 20 px. */
+const WRAP_EMS = 12;
 /** A hub is at most this many times longer than it is deep. */
 const HUB_ASPECT = 4;
 
@@ -65,6 +69,8 @@ export interface LaidOutNode {
   label?: TextSize;
   /** Height of a datastore's top ellipse. */
   cap?: number;
+  /** How much an actor's stick figure is scaled from `ACTOR`. */
+  figure?: number;
   look: Look;
   /** The icon's absolute box, and where it sits. */
   icon?: { x: number; y: number; width: number; height: number; place: IconPlace };
@@ -127,6 +133,7 @@ function leafSize(
   kind: NodeKind,
   label: TextSize | undefined,
   icon?: { width: number; height: number; place: IconPlace },
+  figure = 1,
 ): { width: number; height: number; cap?: number } {
   const lw = label?.width ?? 0;
   const lh = label?.height ?? 0;
@@ -150,7 +157,7 @@ function leafSize(
     };
   }
   if (kind === 'actor') {
-    return { width: Math.ceil(Math.max(ACTOR.width, lw + 2 * BOUND_TEXT_PADDING)), height: Math.ceil(ACTOR.height + ACTOR.labelGap + lh + BOUND_TEXT_PADDING) };
+    return { width: Math.ceil(Math.max(ACTOR.width * figure, lw + 2 * BOUND_TEXT_PADDING)), height: Math.ceil(ACTOR.height * figure + ACTOR.labelGap + lh + BOUND_TEXT_PADDING) };
   }
   const width = Math.max(MIN_WIDTH, Math.ceil(lw + 2 * PAD_X));
   const height = Math.max(MIN_HEIGHT, Math.ceil(lh + 2 * PAD_Y));
@@ -163,7 +170,10 @@ function leafSize(
 
 /** Lays out the model. `icons` are the loaded icons by element ID, at their natural size. */
 export async function layout(model: Model, icons: ReadonlyMap<string, Pick<LoadedIcon, 'width' | 'height'>> = new Map()): Promise<Layout> {
-  const labels = new Map(model.nodes.map((n) => [n.id, n.name === undefined ? undefined : measure(n.name, n.look.fontSize, FONTS[n.look.font])]));
+  // A leaf's long name is wrapped; a container's title, and a name with its own breaks, are not.
+  const leafIds = new Set(model.nodes.filter((n) => !n.children.length).map((n) => n.id));
+  const texts = new Map(model.nodes.map((n) => [n.id, n.name === undefined || !leafIds.has(n.id) ? n.name : wrap(n.name, n.look.fontSize, FONTS[n.look.font])]));
+  const labels = new Map(model.nodes.map((n) => [n.id, texts.get(n.id) === undefined ? undefined : measure(texts.get(n.id)!, n.look.fontSize, FONTS[n.look.font])]));
   const byId = new Map(model.nodes.map((n) => [n.id, n]));
   const sizes = new Map<string, { width: number; height: number; cap?: number }>();
   const fitted = new Map(
@@ -171,7 +181,7 @@ export async function layout(model: Model, icons: ReadonlyMap<string, Pick<Loade
       const icon = icons.get(n.id);
       if (!icon) return [];
       const place = iconPlace(n.kind, n.children.length > 0, n.look);
-      return [[n.id, { ...fit(icon, place === 'only' ? ICON.only : place === 'corner' ? ICON.corner : ICON.inside), place }] as const];
+      return [[n.id, { ...fit(icon, place === 'only' ? Math.max(ICON.only, n.look.height ?? 0) : place === 'corner' ? ICON.corner : ICON.inside), place }] as const];
     }),
   );
 
@@ -196,19 +206,27 @@ export async function layout(model: Model, icons: ReadonlyMap<string, Pick<Loade
     const label = labels.get(id);
     const icon = fitted.get(id);
     if (!n.children.length) {
-      const size = { ...leafSize(n.kind, label, icon) };
+      const size = { ...leafSize(n.kind, label, icon, figureScale(n)) };
+      // A box sized from its text keeps to 2:1, so a long name does not make a thin strip.
+      if (n.kind !== 'actor' && icon?.place !== 'only' && n.look.height === undefined) size.height = Math.max(size.height, Math.round(Math.max(size.width, n.look.width ?? 0) / BOX_RATIO));
       // A hub's arrows each get their own lane: it is widened, and they are spread right across
       // the side they meet, so they run straight to their ends instead of leaving together from
       // the middle and running side by side. ELK places a few arrows well as it is.
       const e = ends.get(id);
       const most = Math.max(e?.in ?? 0, e?.out ?? 0);
       const hub = most >= HUB && n.kind !== 'actor' && icon?.place !== 'only';
-      if (hub) {
+      const set = n.look.width !== undefined || n.look.height !== undefined;
+      if (hub && !set) {
         const [along, across] = model.direction === 'DOWN' ? (['width', 'height'] as const) : (['height', 'width'] as const);
         size[along] = Math.max(size[along], (most + 1) * PORT_GAP);
         // Grown both ways, so it reads as the main part it is rather than a bar.
         size[across] = Math.max(size[across], Math.round(size[along] / HUB_ASPECT));
       }
+      // A size given in the file wins, but never makes a box smaller than its label needs.
+      // On an actor or an `icon-only` element, a size scales the figure or icon instead.
+      const boxed = n.kind !== 'actor' && icon?.place !== 'only';
+      if (boxed && n.look.width !== undefined) size.width = Math.max(size.width, n.look.width);
+      if (boxed && n.look.height !== undefined) size.height = Math.max(size.height, n.look.height);
       sizes.set(id, size);
       return { id, width: size.width, height: size.height, ...(hub ? { layoutOptions: { 'elk.portAlignment.default': 'JUSTIFIED' } } : {}) };
     }
@@ -223,7 +241,8 @@ export async function layout(model: Model, icons: ReadonlyMap<string, Pick<Loade
         ...spacing(model.direction, widestLabel),
         'elk.padding': `[top=${top},left=${side},bottom=${side},right=${side}]`,
         'elk.nodeSize.constraints': 'MINIMUM_SIZE',
-        'elk.nodeSize.minimum': `(${minWidth}, ${top + side})`,
+        // A container is sized to its children; a size given in the file is its least size.
+        'elk.nodeSize.minimum': `(${Math.max(minWidth, n.look.width ?? 0)}, ${Math.max(top + side, n.look.height ?? 0)})`,
       },
       children: n.children.map(toElk),
     };
@@ -274,7 +293,7 @@ export async function layout(model: Model, icons: ReadonlyMap<string, Pick<Loade
     return {
       id: n.id,
       kind: n.kind,
-      ...(n.name !== undefined ? { name: n.name } : {}),
+      ...(texts.get(n.id) !== undefined ? { name: texts.get(n.id)! } : {}),
       ...(n.parent ? { parent: n.parent } : {}),
       container: n.children.length > 0,
       x: r(p.x),
@@ -283,6 +302,7 @@ export async function layout(model: Model, icons: ReadonlyMap<string, Pick<Loade
       height: r(p.height),
       ...(label ? { label } : {}),
       ...(cap !== undefined ? { cap } : {}),
+      ...(n.kind === 'actor' && figureScale(n) !== 1 ? { figure: figureScale(n) } : {}),
       look: n.look,
       ...(iconBox ? { icon: iconBox } : {}),
     };
@@ -438,4 +458,37 @@ function separateLabels(edges: LaidOutEdge[], shapes: readonly Box[]): void {
     e.label.y = r(chosen[1]);
     placed.push(boxAt(chosen, e.label));
   }
+}
+
+/**
+ * A name too wide for one line, broken at spaces onto the fewest lines that fit `WRAP_EMS`, as
+ * evenly as they can be. A name with its own line breaks is kept as written.
+ */
+function wrap(name: string, fontSize: number, font: (typeof FONTS)[keyof typeof FONTS]): string {
+  if (name.includes('\n')) return name;
+  const width = (t: string) => measure(t, fontSize, font).width;
+  const most = WRAP_EMS * fontSize;
+  const words = name.split(/\s+/).filter(Boolean);
+  if (width(name) <= most || words.length < 2) return name;
+  let best = { lines: [name], widest: width(name) };
+  // Every way to break the words into k lines, for k from 2 up, keeping the most even.
+  const splits = (from: number, k: number): string[][] => {
+    if (k === 1) return [[words.slice(from).join(' ')]];
+    const out: string[][] = [];
+    for (let i = from + 1; i <= words.length - k + 1; i++) for (const rest of splits(i, k - 1)) out.push([words.slice(from, i).join(' '), ...rest]);
+    return out;
+  };
+  for (let k = 2; k <= Math.min(words.length, 4); k++) {
+    for (const lines of splits(0, k)) {
+      const widest = Math.max(...lines.map(width));
+      if (widest < best.widest) best = { lines, widest };
+    }
+    if (best.widest <= most) break;
+  }
+  return best.lines.join('\n');
+}
+
+/** On an actor, a size sets the stick figure's height, never below the usual; its width follows. */
+function figureScale(n: { kind: NodeKind; look: Look }): number {
+  return n.kind === 'actor' && n.look.height !== undefined ? Math.max(1, n.look.height / ACTOR.height) : 1;
 }

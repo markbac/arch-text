@@ -10,6 +10,15 @@ export const CONTAINER_KINDS: readonly string[] = ['system', 'component', 'bound
 export const EDGE_OPS = ['<->', '..>', '->', '--'] as const;
 export type EdgeOp = (typeof EDGE_OPS)[number];
 
+/**
+ * Line breaks in a name or label: `<br>` anywhere, and `\n` in bare text as it is in strings.
+ * Strings have already turned `\n` into a break, and keep `\\n` as written.
+ */
+export function lineBreaks(t: { value: string; quoted?: true }): string {
+  const v = t.quoted ? t.value : t.value.replace(/[ \t]*\\n[ \t]*/g, '\n');
+  return v.replace(/[ \t]*<br\s*\/?>[ \t]*/gi, '\n');
+}
+
 export interface Ref {
   /** Set for `@id` references. */
   id?: string;
@@ -160,12 +169,12 @@ class Line {
   }
 
   /** A quoted string, or bare text up to the first of `stops` outside strings (trimmed). */
-  readText(stops: readonly string[]): { value: string; start: number; end: number } | undefined {
+  readText(stops: readonly string[]): { value: string; start: number; end: number; quoted?: true } | undefined {
     this.skipSpaces();
     const start = this.pos;
     if (this.text[this.pos] === '"') {
       const value = this.readString();
-      return { value, start, end: this.pos };
+      return { value, start, end: this.pos, quoted: true };
     }
     let end = this.text.length;
     for (const stop of stops) {
@@ -263,7 +272,7 @@ function readRef(l: Line, stops: readonly string[]): Ref | undefined {
     return { id, range: l.range(start, l.pos) };
   }
   const t = l.readText(stops);
-  return t && { name: t.value, range: l.range(t.start, t.end) };
+  return t && { name: lineBreaks(t), range: l.range(t.start, t.end) };
 }
 
 function parseEdge(l: Line, ops: { index: number; op: EdgeOp }[]): EdgeStatement {
@@ -286,7 +295,8 @@ function parseEdge(l: Line, ops: { index: number; op: EdgeOp }[]): EdgeStatement
   const labelStart = l.pos;
   if (l.peek(':')) {
     l.pos++;
-    label = l.readText(['['])?.value;
+    const t = l.readText(['[']);
+    label = t && lineBreaks(t);
     if (label !== undefined && ops.length > 1) {
       l.fail(Codes.chainLabel, 'A chain of edges cannot have a label.', labelStart, l.pos, 'Write each labelled edge on its own line.');
     }
@@ -313,7 +323,7 @@ function parseLine(l: Line): Statement {
     return {
       kind: 'element',
       type: keyword as ElementKind | 'group',
-      ...(name ? { name: name.value } : {}),
+      ...(name ? { name: lineBreaks(name) } : {}),
       ...(id ? { id } : {}),
       attrs,
       children: [],

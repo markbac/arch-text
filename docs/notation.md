@@ -97,7 +97,7 @@ Browser -> Web app -> Accounts     # a chain: two edges
 - In the `.excalidraw` file, edges are elbow arrows bound to their shapes at both ends, so they re-route and stay attached when shapes are moved.
 - An edge that points against the flow, such as a display back to the person who presses its buttons, is laid out as if it ran the other way and drawn with its arrowhead at its target, so it takes the short route instead of looping round the containers in between.
 - Labels of edges that run side by side are slid along their lines until they clear each other and the shapes.
-- Arrows meet a shape spread across its side. A hub, with four or more arrows on one side, is widened (or, left to right, made taller) to give each arrow its own lane, so they run straight to their ends instead of side by side.
+- Arrows meet a shape spread across its side. A hub, with four or more arrows on one side, is widened (or, left to right, made taller) to give each arrow a 120 px lane, so it reaches across what it connects to and its arrows drop straight to their ends instead of fanning out side by side.
 - `option edges bundle` draws parallel edges as one. See [Directives](#directives).
 
 ### How edge ends are found

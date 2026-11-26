@@ -198,7 +198,7 @@ describe('layout', () => {
       return (scene!.elements.find((e) => e.id === 'hub') as unknown as Box).width;
     };
     expect(await width(3)).toBeLessThan(160);
-    expect(await width(6)).toBeGreaterThanOrEqual(7 * 40);
+    expect(await width(6)).toBeGreaterThanOrEqual(7 * 120);
   });
 
   it('gives each element a unique ID, even when names and edges could collide', async () => {

@@ -19,8 +19,11 @@ const PAD_Y = 20;
 /** Space inside a container around its children; the top also holds the title. */
 const CONTAINER_PAD = 20;
 const GROUP_PAD = 16;
-/** The room each arrow gets along the side of a shape it meets. */
-const PORT_GAP = 40;
+/**
+ * The lane each arrow gets along a hub's side. Wide enough for the hub to reach across what it
+ * connects to, so its arrows drop straight to their ends rather than fanning out sideways.
+ */
+const PORT_GAP = 120;
 /** Arrows on one side that make a shape a hub: widened, with its arrows spread across the side. */
 const HUB = 4;
 

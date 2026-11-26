@@ -39,9 +39,11 @@ export interface Options {
   roughness: number;
   font: FontName;
   colors: 'none' | 'types';
+  /** From `option edges`: draw edges with the same ends and look as one arrow. */
+  bundle: boolean;
 }
 
-export const DEFAULT_OPTIONS: Options = { roughness: 1, font: 'hand', colors: 'none' };
+export const DEFAULT_OPTIONS: Options = { roughness: 1, font: 'hand', colors: 'none', bundle: false };
 
 export const INK = '#1e1e1e';
 export const GREY = '#868e96';

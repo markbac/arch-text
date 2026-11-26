@@ -95,6 +95,10 @@ Browser -> Web app -> Accounts     # a chain: two edges
 - An edge from an element to itself is left out (AT010).
 - Edges may be written at the top level or inside any block. Where an edge is written changes only how its names are looked up, never the drawing.
 - In the `.excalidraw` file, edges are elbow arrows bound to their shapes at both ends, so they re-route and stay attached when shapes are moved.
+- An edge that points against the flow, such as a display back to the person who presses its buttons, is laid out as if it ran the other way and drawn with its arrowhead at its target, so it takes the short route instead of looping round the containers in between.
+- Labels of edges that run side by side are slid along their lines until they clear each other and the shapes.
+- Arrows meet a shape spread across its side. A hub, with four or more arrows on one side, is widened (or, left to right, made taller) to give each arrow its own lane, so they run straight to their ends instead of side by side.
+- `option edges bundle` draws parallel edges as one. See [Directives](#directives).
 
 ### How edge ends are found
 
@@ -141,6 +145,7 @@ These go at the top level (AT020 inside a block).
 | `option sketch clean \| artist \| cartoon` | How hand-drawn lines look: Excalidraw's roughness 0, 1 (the default) or 2. |
 | `option font hand \| normal \| code` | The font for every label: Excalifont (the default), Nunito or Comic Shanns, the three in Excalidraw's font picker. |
 | `option colors none \| types` | `types` fills each kind of element with its own colour; `none` (the default) fills nothing. `colours` is accepted too. |
+| `option edges separate \| bundle` | `bundle` draws edges with the same two ends, operator and look as one arrow, with their labels one under another, as for the wires of one connector. `separate` (the default) draws each edge. |
 | `use icons <file.excalidrawlib>` | Load an icon library. See [Icons](#icons). |
 | `style <kind or .class> [attrs]` | A style rule. See [Styling](#styling). |
 

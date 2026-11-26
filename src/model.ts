@@ -73,7 +73,10 @@ function setOption(model: Model, key: string, value: string, range: Range, diagn
   } else if (key === 'colors' || key === 'colours') {
     if (v === 'none' || v === 'types') model.options.colors = v;
     else bad('`none` or `types`');
-  } else diagnostics.push(error(Codes.badOption, `There is no option called \`${key}\`.`, range, 'The options are direction, sketch, font and colors.'));
+  } else if (key === 'edges') {
+    if (v === 'bundle' || v === 'separate') model.options.bundle = v === 'bundle';
+    else bad('`separate` or `bundle`');
+  } else diagnostics.push(error(Codes.badOption, `There is no option called \`${key}\`.`, range, 'The options are direction, sketch, font, colors and edges.'));
 }
 
 export function resolve(statements: readonly Statement[]): { model: Model; diagnostics: Diagnostic[] } {

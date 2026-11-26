@@ -50,6 +50,8 @@ export const DEFAULT_OPTIONS: Options = { roughness: 1, font: 'hand', colors: 'n
 
 export const INK = '#1e1e1e';
 export const GREY = '#868e96';
+/** A boundary's line: lighter than any edge, so it groups without competing with them. */
+export const BOUNDARY_LINE = '#ced4da';
 export const NODE_FONT_SIZE = 20;
 export const EDGE_FONT_SIZE = 16;
 
@@ -248,9 +250,10 @@ export function defaults(kind: StyledKind, container: boolean, options: Options)
   return {
     fill: typeColour ? PALETTE[typeColour]![container ? 0 : 1]! : 'transparent',
     fillStyle: 'solid',
-    stroke: boundary ? GREY : INK,
-    strokeWidth: 2,
-    strokeStyle: boundary ? 'dashed' : 'solid',
+    // A boundary is light, thin and dotted, so it reads as a grouping, never as an edge, even a dashed one.
+    stroke: boundary ? BOUNDARY_LINE : INK,
+    strokeWidth: boundary ? 1 : 2,
+    strokeStyle: boundary ? 'dotted' : 'solid',
     roughness: options.roughness,
     rounded: kind === 'component',
     opacity: 100,

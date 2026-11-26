@@ -59,7 +59,7 @@ system "Check -> reserve"     # contains "->"
 | `component` | Rounded rectangle | Yes |
 | `actor` | Stick figure with the name beneath | No (AT012) |
 | `datastore` | Cylinder | No (AT012) |
-| `boundary` | Dashed grey rectangle with the name at the top left | Yes |
+| `boundary` | Light grey, thin, dotted rectangle with the name at the top left | Yes |
 | `group` | Nothing: its members are laid out together and form one Excalidraw group | Yes, and must (AT016) |
 
 ```archt
@@ -180,7 +180,7 @@ Orders -> Payments: card [stroke: blue]
 
 Excalidraw has a fixed set of style properties and no rich text, so arch-text exposes those properties and nothing else. The look of each element and edge is worked out in four layers. Each layer overrides the one before it, property by property:
 
-1. **Options.** Excalidraw's defaults, then `option sketch`, `option font` and `option colors`, then the look of each kind: boundaries are dashed and grey with the title at the top left, components are rounded, and `..>` edges are dashed.
+1. **Options.** Excalidraw's defaults, then `option sketch`, `option font` and `option colors`, then the look of each kind: boundaries are light grey, thin (1 px) and dotted with a grey title at the top left, so they never look like an edge, even a dashed one; components are rounded, and `..>` edges are dashed.
 1. **Kind rules.** `style system [...]`, `style component [...]`, `style actor [...]`, `style datastore [...]`, `style boundary [...]`, and `style edge [...]` for every edge. Rules for the same kind apply in source order.
 1. **Class rules.** `style .<class> [...]` for each element or edge with that class. Rules apply **in source order**, not in the order the classes are listed on the element: with `[class: external, critical]`, a property set by both `.external` and `.critical` takes the value of whichever rule is written later in the file. Edges take only the edge properties from a class rule, so one class can style both elements and edges.
 1. **Attributes** on the element or edge itself.

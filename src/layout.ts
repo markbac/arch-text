@@ -26,6 +26,8 @@ const GROUP_PAD = 16;
 const PORT_GAP = 120;
 /** Arrows on one side that make a shape a hub: widened, with its arrows spread across the side. */
 const HUB = 4;
+/** A hub is at most this many times longer than it is deep. */
+const HUB_ASPECT = 4;
 
 /** The stick figure for an actor, drawn at the top of its box. */
 export const ACTOR = { width: 40, height: 70, head: 20, labelGap: 6 } as const;
@@ -202,8 +204,10 @@ export async function layout(model: Model, icons: ReadonlyMap<string, Pick<Loade
       const most = Math.max(e?.in ?? 0, e?.out ?? 0);
       const hub = most >= HUB && n.kind !== 'actor' && icon?.place !== 'only';
       if (hub) {
-        const key = model.direction === 'DOWN' ? 'width' : 'height';
-        size[key] = Math.max(size[key], (most + 1) * PORT_GAP);
+        const [along, across] = model.direction === 'DOWN' ? (['width', 'height'] as const) : (['height', 'width'] as const);
+        size[along] = Math.max(size[along], (most + 1) * PORT_GAP);
+        // Grown both ways, so it reads as the main part it is rather than a bar.
+        size[across] = Math.max(size[across], Math.round(size[along] / HUB_ASPECT));
       }
       sizes.set(id, size);
       return { id, width: size.width, height: size.height, ...(hub ? { layoutOptions: { 'elk.portAlignment.default': 'JUSTIFIED' } } : {}) };

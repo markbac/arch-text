@@ -191,14 +191,17 @@ describe('layout', () => {
     }
   });
 
-  it('widens a hub so each of its arrows has a lane, and leaves other shapes their size', async () => {
+  it('grows a hub so each of its arrows has a lane, keeping it no more than 4:1, and leaves other shapes their size', async () => {
     const width = async (n: number) => {
       const targets = Array.from({ length: n }, (_, i) => `system T${i}`);
       const { scene } = await build(lines('option direction down', 'system Hub', ...targets, ...targets.map((t) => `Hub -> ${t.slice(7)}`)));
-      return (scene!.elements.find((e) => e.id === 'hub') as unknown as Box).width;
+      return scene!.elements.find((e) => e.id === 'hub') as unknown as Box;
     };
-    expect(await width(3)).toBeLessThan(160);
-    expect(await width(6)).toBeGreaterThanOrEqual(7 * 120);
+    expect((await width(3)).width).toBeLessThan(160);
+    const hub = await width(6);
+    expect(hub.width).toBeGreaterThanOrEqual(7 * 120);
+    // Deep enough to read as a part, not a bar.
+    expect(hub.height).toBeGreaterThanOrEqual(hub.width / 4);
   });
 
   it('gives each element a unique ID, even when names and edges could collide', async () => {

@@ -53,6 +53,9 @@ export interface Model {
 
 const DIRECTIONS: Record<string, Direction> = { right: 'RIGHT', down: 'DOWN' };
 
+/** Operators with their only arrowhead at the start, and the operator for the edge turned round. */
+const REVERSED: Partial<Record<EdgeOp, EdgeOp>> = { '<-': '->', '<..': '..>', '<==': '==>' };
+
 /** Names match ignoring case and repeated whitespace, as in bpmn-text. */
 const sameName = (a: string, b: string) => a.replace(/\s+/g, ' ').toLowerCase() === b.replace(/\s+/g, ' ').toLowerCase();
 
@@ -204,9 +207,12 @@ export function resolve(statements: readonly Statement[]): { model: Model; diagn
       }
       return n;
     });
-    st.ops.forEach((op, k) => {
-      const from = ends[k];
-      const to = ends[k + 1];
+    st.ops.forEach((written, k) => {
+      // An edge with its only arrowhead at the start, such as `A <- B`, is the edge `B -> A`.
+      const reversed = REVERSED[written];
+      const op = reversed ?? written;
+      const from = reversed ? ends[k + 1] : ends[k];
+      const to = reversed ? ends[k] : ends[k + 1];
       if (!from || !to) return;
       if (from === to) {
         diagnostics.push(warning(Codes.selfEdge, 'Edges from an element to itself are not supported yet, so this one is left out.', st.range));
@@ -218,8 +224,9 @@ export function resolve(statements: readonly Statement[]): { model: Model; diagn
         );
         return;
       }
-      // `..>` is dashed unless something says otherwise, so it sits between the defaults and the rules.
-      const look = lookFor('edge', false, classesOf(st.attrs), ownLook, rules, model.options, op === '..>' ? { strokeStyle: 'dashed' } : {});
+      // The operator's line, dashed for `..` and thick for `==`, sits between the defaults and the
+      // rules, so a rule or an attribute can still change it.
+      const look = lookFor('edge', false, classesOf(st.attrs), ownLook, rules, model.options, op.includes('.') ? { strokeStyle: 'dashed' } : op.includes('=') ? { strokeWidth: 4 } : {});
       model.edges.push({
         id: unique(`${from.id}->${to.id}`, edgeIds),
         from: from.id,

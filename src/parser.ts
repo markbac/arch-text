@@ -7,8 +7,21 @@ export type ElementKind = (typeof ELEMENT_KINDS)[number];
 /** Kinds that may hold other elements. */
 export const CONTAINER_KINDS: readonly string[] = ['system', 'component', 'boundary', 'group'];
 
-export const EDGE_OPS = ['<->', '..>', '->', '--'] as const;
+/**
+ * Edge operators. The body says how the line is drawn (`-` solid, `.` dashed, `=` thick) and
+ * the ends say where the arrowheads are.
+ */
+export const EDGE_OPS = ['->', '<-', '<->', '--', '..>', '<..', '<..>', '..', '==>', '<==', '<==>', '=='] as const;
 export type EdgeOp = (typeof EDGE_OPS)[number];
+/**
+ * Operators as they may be written, longest first, with the operator each means. `..` and `==`
+ * need a space on each side, so a name such as `Loading...` or `v1..v2` is left alone.
+ */
+const WRITTEN: readonly (readonly [string, EdgeOp])[] = [
+  ['<-->', '<->'], ['<..>', '<..>'], ['<==>', '<==>'], ['<->', '<->'], ['-->', '->'], ['---', '--'], ['<--', '<-'],
+  ['..>', '..>'], ['<..', '<..'], ['==>', '==>'], ['<==', '<=='], ['->', '->'], ['<-', '<-'], ['--', '--'],
+  [' .. ', '..'], [' == ', '=='],
+];
 
 /**
  * Line breaks in a name or label: `<br>` anywhere, and `\n` in bare text as it is in strings.
@@ -104,19 +117,22 @@ function stripComment(text: string): string {
 }
 
 /** Every edge operator outside strings and `[...]`, in order. */
-function findEdgeOps(text: string): { index: number; op: EdgeOp }[] {
-  const found: { index: number; op: EdgeOp }[] = [];
+function findEdgeOps(text: string): FoundOp[] {
+  const found: FoundOp[] = [];
   let skipTo = -1;
   scanCode(text, (i) => {
     if (i < skipTo) return;
-    const op = EDGE_OPS.find((o) => text.startsWith(o, i));
-    if (op) {
-      found.push({ index: i, op });
-      skipTo = i + op.length;
+    const w = WRITTEN.find(([o]) => text.startsWith(o, i));
+    if (w) {
+      found.push({ index: i, op: w[1], length: w[0].length, written: w[0].trim() });
+      skipTo = i + w[0].length;
     }
   });
   return found;
 }
+
+/** An operator found in a line: where, what it means, and how long it is as written. */
+type FoundOp = { index: number; op: EdgeOp; length: number; written: string };
 
 /** Reads one line left to right. `offset` is the column of `text[0]` minus one. */
 class Line {
@@ -275,21 +291,21 @@ function readRef(l: Line, stops: readonly string[]): Ref | undefined {
   return t && { name: lineBreaks(t), range: l.range(t.start, t.end) };
 }
 
-function parseEdge(l: Line, ops: { index: number; op: EdgeOp }[]): EdgeStatement {
+function parseEdge(l: Line, ops: FoundOp[]): EdgeStatement {
   const whole = l.range(0, l.text.length);
   const refs: Ref[] = [];
-  ops.forEach(({ index, op }, k) => {
-    const segStart = k === 0 ? 0 : ops[k - 1]!.index + ops[k - 1]!.op.length;
+  ops.forEach(({ index, written, length }, k) => {
+    const segStart = k === 0 ? 0 : ops[k - 1]!.index + ops[k - 1]!.length;
     const seg = new Line(l.text.slice(segStart, index), l.line, l.offset + segStart);
     const ref = readRef(seg, []);
-    if (!ref) l.fail(Codes.missingName, `There is nothing before \`${op}\`.`, segStart, index + op.length, 'Write edges as `A -> B`.');
+    if (!ref) l.fail(Codes.missingName, `There is nothing before \`${written}\`.`, segStart, index + length, 'Write edges as `A -> B`.');
     seg.expectEnd();
     refs.push(ref);
   });
   const last = ops[ops.length - 1]!;
-  l.pos = last.index + last.op.length;
+  l.pos = last.index + last.length;
   const to = readRef(l, [':', '[']);
-  if (!to) l.fail(Codes.missingName, `There is nothing after \`${last.op}\`.`, last.index, l.text.length, 'Write edges as `A -> B`.');
+  if (!to) l.fail(Codes.missingName, `There is nothing after \`${last.written}\`.`, last.index, l.text.length, 'Write edges as `A -> B`.');
   refs.push(to);
   let label: string | undefined;
   const labelStart = l.pos;
@@ -311,7 +327,7 @@ function parseLine(l: Line): Statement {
   const word = /^[a-z]+/.exec(l.text)?.[0] ?? '';
   const keyword = word && (l.text.length === word.length || l.text[word.length] === ' ') ? word : '';
   const whole = l.range(0, l.text.length);
-  const nameStops = ['@', '[', ...EDGE_OPS];
+  const nameStops = ['@', '[', ...WRITTEN.map(([o]) => o)];
 
   if ((ELEMENT_KINDS as readonly string[]).includes(keyword) || keyword === 'group') {
     l.pos = word.length;

@@ -75,20 +75,28 @@ system Platform @platform [doc: "The data platform"]
 
 ## Edges
 
-| Operator | Meaning | Drawn as |
-|---|---|---|
-| `->` | Directed | Arrow |
-| `<->` | Both ways | Arrow with two heads |
-| `--` | Undirected | Line |
-| `..>` | Asynchronous or optional | Dashed arrow |
+An operator's body says how the line is drawn, and its ends say where the arrowheads go.
+
+| Line | No heads | Head at the end | Head at the start | Both heads |
+|---|---|---|---|---|
+| Solid | `--` | `->` | `<-` | `<->` |
+| Dashed, for asynchronous or optional | `..` | `..>` | `<..` | `<..>` |
+| Thick (4 px), for a main path | `==` | `==>` | `<==` | `<==>` |
 
 ```archt
 Web app -> Accounts: SQL
 Web app <-> Session cache
 Web app -- Payments
 Web app ..> Email: async
+Web app <.. Scheduler: wakes
+Gateway ==> Platform: telemetry
 Browser -> Web app -> Accounts     # a chain: two edges
 ```
+
+- `-->`, `---`, `<--` and `<-->` are accepted for `->`, `--`, `<-` and `<->`.
+- `..` and `==` need a space on each side, so a name such as `Loading...` or `v1..v2` is not split.
+- `A <- B` is the edge `B -> A`: it is laid out as flowing from B to A, with its arrowhead at A. So are `<..` and `<==`.
+- For a dotted line, or any other look, use attributes: `A -> B [stroke-style: dotted]`. A rule or attribute overrides the operator's line.
 
 - An edge may have a label after `:`, and attributes after that: `A -> B: HTTPS [doc: "Public API"]`.
 - A chain such as `A -> B -> C` makes one edge per step, each with its own operator. A chain cannot have a label (AT015); write labelled edges on their own lines.
@@ -312,7 +320,9 @@ kind         = "system" | "component" | "actor" | "datastore" | "boundary" | "gr
    boundary, system, component and group only, and a group must hold something. *)
 
 edge         = ref , edge_op , ref , { edge_op , ref } , [ ":" , label ] , [ attrs ] ;
-edge_op      = "->" | "<->" | "--" | "..>" ;
+edge_op      = "->" | "<-" | "<->" | "--" | "..>" | "<.." | "<..>" | " .. "
+             | "==>" | "<==" | "<==>" | " == " | "-->" | "<--" | "<-->" | "---" ;
+(* ".." and "==" need a space each side. "-->", "<--", "<-->" and "---" mean "->", "<-", "<->" and "--". *)
 ref          = id | name ;
 (* A chain (more than one edge_op) cannot have a label. *)
 

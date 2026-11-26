@@ -346,8 +346,16 @@ function withLabelPoint(pts: Point[], centre: Point): { points: Point[]; at: Poi
 const ARROWHEADS: Record<EdgeOp, [string | null, string | null]> = {
   '->': [null, 'arrow'],
   '..>': [null, 'arrow'],
+  '==>': [null, 'arrow'],
+  '<-': ['arrow', null],
+  '<..': ['arrow', null],
+  '<==': ['arrow', null],
   '<->': ['arrow', 'arrow'],
+  '<..>': ['arrow', 'arrow'],
+  '<==>': ['arrow', 'arrow'],
   '--': [null, null],
+  '..': [null, null],
+  '==': [null, null],
 };
 
 /** Where `p` sits on `box`, as fractions of its width and height: an elbow arrow's fixed point. */

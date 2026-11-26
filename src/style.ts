@@ -32,6 +32,9 @@ export interface Look {
   textAlign: TextAlign;
   icon?: Icon;
   iconOnly: boolean;
+  /** A size set by `size`, `width` or `height`, in px; undefined to size from the label. */
+  width?: number | undefined;
+  height?: number | undefined;
 }
 
 export interface Options {
@@ -39,12 +42,16 @@ export interface Options {
   roughness: number;
   font: FontName;
   colors: 'none' | 'types';
+  /** From `option edges`: draw edges with the same ends and look as one arrow. */
+  bundle: boolean;
 }
 
-export const DEFAULT_OPTIONS: Options = { roughness: 1, font: 'hand', colors: 'none' };
+export const DEFAULT_OPTIONS: Options = { roughness: 1, font: 'hand', colors: 'none', bundle: false };
 
 export const INK = '#1e1e1e';
 export const GREY = '#868e96';
+/** A boundary's line: lighter than any edge, so it groups without competing with them. */
+export const BOUNDARY_LINE = '#ced4da';
 export const NODE_FONT_SIZE = 20;
 export const EDGE_FONT_SIZE = 16;
 
@@ -76,6 +83,15 @@ export const SKETCH: Record<string, number> = { clean: 0, artist: 1, cartoon: 2 
 const STROKE_WIDTHS: Record<string, number> = { thin: 1, bold: 2, 'extra-bold': 4 };
 const FONT_SIZES: Record<string, number> = { small: 16, medium: 20, large: 28, huge: 36 };
 export const FONT_NAMES: readonly FontName[] = ['hand', 'normal', 'code'];
+/** Box sizes for `size`, width by height in px. `small` is the smallest box arch-text draws. */
+export const SIZES: Record<string, readonly [number, number]> = { small: [120, 60], medium: [200, 100], large: [320, 160], huge: [480, 240] };
+const MIN_SIZE = 20;
+const MAX_SIZE = 4000;
+const length = (v: string): Parsed<number | undefined> => {
+  if (v === 'auto') return { value: undefined };
+  const n = number(v.replace(/px$/, ''), MIN_SIZE, MAX_SIZE);
+  return n !== undefined ? { value: Math.round(n) } : { problem: `is auto or a number of px from ${MIN_SIZE} to ${MAX_SIZE}` };
+};
 
 type Role = 'fill' | 'stroke';
 
@@ -150,6 +166,21 @@ const ATTRS: Record<string, { edges: boolean; read: (v: string) => Parsed<Partia
   },
   'text-color': { edges: true, read: (v) => { const c = colour(v, 'stroke'); return c ? { value: { textColor: c } } : { problem: 'is not a colour', hint: COLOUR_HINT }; } },
   'text-align': { edges: false, read: (v) => { const p = oneOf(['left', 'center', 'right'] as const, v); return 'value' in p ? { value: { textAlign: p.value } } : p; } },
+  size: {
+    edges: false,
+    read: (v) => {
+      if (v === 'auto') return { value: { width: undefined, height: undefined } };
+      const preset = SIZES[v];
+      if (preset) return { value: { width: preset[0], height: preset[1] } };
+      const m = /^(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)$/.exec(v);
+      const w = m ? length(m[1]!) : undefined;
+      const h = m ? length(m[2]!) : undefined;
+      if (w && h && 'value' in w && 'value' in h) return { value: { width: w.value, height: h.value } };
+      return { problem: `is auto, ${Object.keys(SIZES).join(', ')}, or width x height in px from ${MIN_SIZE} to ${MAX_SIZE}, such as 400x200` };
+    },
+  },
+  width: { edges: false, read: (v) => { const p = length(v); return 'value' in p ? { value: { width: p.value } } : p; } },
+  height: { edges: false, read: (v) => { const p = length(v); return 'value' in p ? { value: { height: p.value } } : p; } },
 };
 
 /** Attributes that are not styling but are allowed where noted. */
@@ -219,9 +250,10 @@ export function defaults(kind: StyledKind, container: boolean, options: Options)
   return {
     fill: typeColour ? PALETTE[typeColour]![container ? 0 : 1]! : 'transparent',
     fillStyle: 'solid',
-    stroke: boundary ? GREY : INK,
-    strokeWidth: 2,
-    strokeStyle: boundary ? 'dashed' : 'solid',
+    // A boundary is light, thin and dotted, so it reads as a grouping, never as an edge, even a dashed one.
+    stroke: boundary ? BOUNDARY_LINE : INK,
+    strokeWidth: boundary ? 1 : 2,
+    strokeStyle: boundary ? 'dotted' : 'solid',
     roughness: options.roughness,
     rounded: kind === 'component',
     opacity: 100,

@@ -12,6 +12,8 @@ type Box = { x: number; y: number; width: number; height: number };
 const inside = (a: Box, b: Box) => a.x >= b.x && a.y >= b.y && a.x + a.width <= b.x + b.width && a.y + a.height <= b.y + b.height;
 const overlaps = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 
+const lines = (...l: string[]) => l.join('\n');
+
 const EXAMPLES = path.resolve('examples');
 const examples = fs.readdirSync(EXAMPLES).filter((f) => f.endsWith('.archt'));
 
@@ -151,6 +153,55 @@ describe('layout', () => {
     expect(groupsOf('a')).toEqual(['["a:shape","group:g"]']);
     expect(groupsOf('d')).toEqual(['["d:shape","group:g"]']);
     expect(scene!.elements.filter((e) => e.id.startsWith('a')).map((e) => e.type)).toEqual(['ellipse', 'line', 'line', 'line', 'rectangle', 'text']);
+  });
+
+  it('draws edges with the same ends separately unless `option edges bundle`', async () => {
+    const src = (opt: string) => lines(opt, 'system A', 'system B', 'A -> B: VCC', 'A -> B: GND', 'A -> B', 'A ..> B: async');
+    const arrows = async (opt: string) => (await build(src(opt))).scene!.elements.filter((e) => e.type === 'arrow');
+    const labels = async (opt: string) => {
+      const els = (await build(src(opt))).scene!.elements;
+      const arrowIds = new Set(els.filter((e) => e.type === 'arrow').map((e) => e.id));
+      return els.filter((e) => e.type === 'text' && arrowIds.has(e.containerId as string)).map((e) => e.text);
+    };
+    expect(await arrows('')).toHaveLength(4);
+    expect(await arrows('option edges separate')).toHaveLength(4);
+    // Same ends, operator and look: one arrow with the labels stacked. The dashed `..>` stays apart.
+    expect(await arrows('option edges bundle')).toHaveLength(2);
+    expect(await labels('option edges bundle')).toEqual(['VCC\nGND', 'async']);
+  });
+
+  it.each(['down', 'right'])('routes edges in a cycle the short way, with arrowheads at their targets (direction %s)', async (direction) => {
+    // One of these edges points against the flow, whichever way ELK breaks the cycle.
+    const { scene } = await build(lines(`option direction ${direction}`, 'actor User', 'boundary Device', '  system Button', '  system Logic', '  system Display', 'User -> Button', 'Button -> Logic', 'Logic -> Display', 'Display -> User: shows'));
+    const byId = new Map(scene!.elements.map((e) => [e.id, e as unknown as Box]));
+    const end = (a: Scene['elements'][number], k: 'startBinding' | 'endBinding') => (a[k] as { elementId: string }).elementId;
+    const arrows = scene!.elements.filter((e) => e.type === 'arrow');
+    expect(arrows.map((a) => `${end(a, 'startBinding')}->${end(a, 'endBinding')}`)).toEqual(['user->button', 'button->logic', 'logic->display', 'display->user']);
+    // No arrow detours round the device: each stays within the box its two shapes span.
+    for (const a of arrows as unknown as (Scene['elements'][number] & Box)[]) {
+      const s = byId.get(end(a, 'startBinding'))!;
+      const t = byId.get(end(a, 'endBinding'))!;
+      const span = { x: Math.min(s.x, t.x) - 1, y: Math.min(s.y, t.y) - 1, right: Math.max(s.x + s.width, t.x + t.width) + 1, bottom: Math.max(s.y + s.height, t.y + t.height) + 1 };
+      for (const [x, y] of a.points as [number, number][]) {
+        expect(a.x + x, `${a.id} x`).toBeGreaterThanOrEqual(span.x);
+        expect(a.x + x, `${a.id} x`).toBeLessThanOrEqual(span.right);
+        expect(a.y + y, `${a.id} y`).toBeGreaterThanOrEqual(span.y);
+        expect(a.y + y, `${a.id} y`).toBeLessThanOrEqual(span.bottom);
+      }
+    }
+  });
+
+  it('grows a hub so each of its arrows has a lane, keeping it no more than 4:1, and leaves other shapes their size', async () => {
+    const width = async (n: number) => {
+      const targets = Array.from({ length: n }, (_, i) => `system T${i}`);
+      const { scene } = await build(lines('option direction down', 'system Hub', ...targets, ...targets.map((t) => `Hub -> ${t.slice(7)}`)));
+      return scene!.elements.find((e) => e.id === 'hub') as unknown as Box;
+    };
+    expect((await width(3)).width).toBeLessThan(160);
+    const hub = await width(6);
+    expect(hub.width).toBeGreaterThanOrEqual(7 * 120);
+    // Deep enough to read as a part, not a bar.
+    expect(hub.height).toBeGreaterThanOrEqual(hub.width / 4);
   });
 
   it('gives each element a unique ID, even when names and edges could collide', async () => {

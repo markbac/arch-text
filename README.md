@@ -31,7 +31,7 @@ Operator ..> Platform: Alerts
 
 ![The example above, exported to PNG](docs/images/smart-metering.png)
 
-Elements are `system`, `component`, `actor`, `datastore` and `boundary`, nested to any depth, plus invisible `group`s. Edges are `->`, `<->`, `--` and `..>`, with optional labels, and may be chained. [docs/notation.md](docs/notation.md) has the whole notation, its grammar and every diagnostic. More examples are in [examples/](examples/).
+Elements are `system`, `component`, `actor`, `datastore` and `boundary`, nested to any depth, plus invisible `group`s. Edges are solid (`--`, `->`, `<-`, `<->`), dashed (`..`, `..>`, `<..`, `<..>`) or thick (`==`, `==>`, `<==`, `<==>`), with optional labels, and may be chained. [docs/notation.md](docs/notation.md) has the whole notation, its grammar and every diagnostic. More examples are in [examples/](examples/).
 
 ## Styling and icons
 

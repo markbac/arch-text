@@ -167,6 +167,7 @@ describe('diagnostics', () => {
     ['AT019: bad sketch', 'option sketch rough', ['AT019 1:1-20']],
     ['AT019: bad font', 'option font serif', ['AT019 1:1-18']],
     ['AT019: bad colors', 'option colors all', ['AT019 1:1-18']],
+    ['AT019: bad edges', 'option edges merge', ['AT019 1:1-19']],
     ['AT020: directive inside a block', 'boundary A\n  title "x"', ['AT020 2:3-12']],
     ['AT021: unclosed attribute list', 'system A [doc: x', ['AT021 1:10-17']],
     ['AT022: bold markup in a name (warning)', 'system **Core** platform', ['AT022 1:1-25']],

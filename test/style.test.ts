@@ -185,10 +185,11 @@ describe('text measurement follows the font and size', () => {
       ['font: normal, font-size: 36', FONTS.normal, 36],
       ['font: code, font-size: small', FONTS.code, 16],
     ] as const) {
-      const els = await scene(`system Identity provider${attrs ? ` [${attrs}]` : ''}`);
-      const label = find(els, 'identity-provider:label');
-      const box = find(els, 'identity-provider');
-      const m = measure('Identity provider', size, font);
+      // One word, so it is never wrapped.
+      const els = await scene(`system Gateway${attrs ? ` [${attrs}]` : ''}`);
+      const label = find(els, 'gateway:label');
+      const box = find(els, 'gateway');
+      const m = measure('Gateway', size, font);
       expect(label.width).toBeCloseTo(m.width, 1);
       expect(label.height).toBeCloseTo(m.height, 1);
       expect(box.width as number).toBeGreaterThan(m.width);
@@ -223,5 +224,130 @@ describe('style diagnostics', () => {
     expect(diagnostics[0]).toMatchObject({ code: 'AT023', severity: 'warning' });
     expect(diagnostics[0]!.hint).toMatch(/blue-3/);
     expect(find(s!.elements, 'a')).toMatchObject({ backgroundColor: 'transparent', strokeColor: '#e03131' });
+  });
+});
+
+describe('size', () => {
+  const box = async (source: string, id = 'a') => {
+    const e = find(await scene(source), id) as unknown as { width: number; height: number };
+    return [e.width, e.height];
+  };
+
+  it.each([
+    ['medium', 200, 100],
+    ['large', 320, 160],
+    ['huge', 480, 240],
+    ['400x200', 400, 200],
+    ['400 x 200', 400, 200],
+  ])('`size: %s` draws a %i x %i box', async (size, w, h) => {
+    expect(await box(`system A [size: ${size}]`)).toEqual([w, h]);
+  });
+
+  it('`size: small` is the smallest box, which its label may make a little taller', async () => {
+    const [w, h] = await box('system A [size: small]');
+    expect(w).toBe(120);
+    expect(h).toBe((await box('system A'))[1]);
+  });
+
+  it('sets one side with `width` or `height`; the other keeps to 2:1 or fits the label', async () => {
+    const [w] = await box('system A');
+    expect(await box('system A [width: 300]')).toEqual([300, 150]);
+    expect(await box('system A [height: 40]')).toEqual([w, (await box('system A [height: 40]'))[1]]);
+    expect(await box('system A [height: 150]')).toEqual([w, 150]);
+  });
+
+  it('never makes a box smaller than its label needs', async () => {
+    const [w] = await box('system A rather long name for a small box @a');
+    expect((await box('system A rather long name for a small box @a [size: 40x40]'))[0]).toBe(w);
+  });
+
+  it('comes from style rules, and `auto` undoes one', async () => {
+    const src = lines('style system [size: large]', 'style .plain [size: auto]', 'system A', 'system B [class: plain]', 'system C [class: plain, width: 250]');
+    const natural = await box('system B', 'b');
+    expect(await box(src, 'a')).toEqual([320, 160]);
+    expect(await box(src, 'b')).toEqual(natural);
+    expect((await box(src, 'c'))[0]).toBe(250);
+  });
+
+  it('is the least size of a container, which still grows to hold its children', async () => {
+    expect(await box(lines('boundary A [size: 900x500]', '  system B'))).toEqual([900, 500]);
+    const [w] = await box(lines('boundary A [width: 50]', '  system B', '  system C', '  B -> C'));
+    expect(w).toBeGreaterThan(50 + 2 * 120);
+  });
+
+  it('overrides the growth of a hub', async () => {
+    const targets = ['system T1', 'system T2', 'system T3', 'system T4', 'system T5'];
+    const src = (attrs: string) => lines('option direction down', `system A ${attrs}`, ...targets, ...targets.map((t) => `A -> ${t.slice(7)}`));
+    expect((await box(src('')))[0]).toBeGreaterThan(500);
+    expect(await box(src('[size: medium]'))).toEqual([200, 100]);
+  });
+
+  it('scales an actor\'s stick figure to the height it gives, never below the usual', async () => {
+    const figure = async (attrs: string) => {
+      const { diagnostics, scene: s } = await build(`actor A ${attrs}`);
+      expect(diagnostics).toEqual([]);
+      const part = (p: string) => s!.elements.find((e) => e.id === `a:${p}`) as unknown as { y: number; height: number; points: [number, number][] };
+      const legs = part('legs');
+      return legs.y + Math.max(...legs.points.map(([, y]) => y)) - part('head').y;
+    };
+    expect(await figure('')).toBeCloseTo(70, 0);
+    expect(await figure('[size: small]')).toBeCloseTo(70, 0);
+    expect(await figure('[size: large]')).toBeCloseTo(160, 0);
+    expect(await figure('[height: 120]')).toBeCloseTo(120, 0);
+    const big = (await build(lines('style actor [size: huge]', 'actor A'))).scene!.elements.find((e) => e.id === 'a') as unknown as { height: number };
+    expect(big.height).toBeGreaterThan(240);
+  });
+
+  it('scales an `icon-only` element\'s icon to the height it gives, never below the usual', async () => {
+    const icon = async (attrs: string) => {
+      const { diagnostics, scene: s } = await build(`system A [icon: ./icons/router.svg, icon-only${attrs}]`, { file: 'examples/x.archt' });
+      expect(diagnostics).toEqual([]);
+      const e = s!.elements.find((x) => x.id === 'a:icon') as unknown as { width: number; height: number };
+      return Math.max(e.width, e.height);
+    };
+    expect(await icon('')).toBe(64);
+    expect(await icon(', size: small')).toBe(64);
+    expect(await icon(', size: large')).toBe(160);
+  });
+
+  it.each(['big', '10x10', '400x', 'x200', '5000x100'])('rejects `size: %s` with a hint', async (size) => {
+    const { diagnostics } = await build(`system A [size: ${size}]`);
+    expect(diagnostics.map((d) => d.code)).toEqual(['AT023']);
+    expect(diagnostics[0]!.message).toContain('400x200');
+  });
+});
+
+describe('line breaks and wrapping', () => {
+  const text = async (source: string, id: string) => find(await scene(source), `${id}:label`).text;
+
+  it.each([
+    ['system Metrology<br>Unit @a', 'Metrology\nUnit'],
+    ['system Metrology <br/> Unit @a', 'Metrology\nUnit'],
+    ['system Metrology\\nUnit @a', 'Metrology\nUnit'],
+    ['system "Metrology\\nUnit" @a', 'Metrology\nUnit'],
+    ['system "Metrology<br>Unit" @a', 'Metrology\nUnit'],
+  ])('`%s` breaks the name', async (source, expected) => {
+    expect(await text(source, 'a')).toBe(expected);
+  });
+
+  it('breaks edge labels, and matches a broken name in an edge as if on one line', async () => {
+    const els = await scene(lines('system Metrology<br>Unit', 'system B', 'Metrology Unit -> B: VCC<br>GND'));
+    const label = els.find((e) => e.type === 'text' && e.containerId === 'metrology-unit->b')!;
+    expect(label.text).toBe('VCC\nGND');
+  });
+
+  it('wraps a long name onto even lines, and keeps a short one on one line', async () => {
+    expect(await text('system Metrology Pressure & Temperature Sensor @a', 'a')).toBe('Metrology Pressure &\nTemperature Sensor');
+    expect(await text('system Application Unit @a', 'a')).toBe('Application Unit');
+  });
+
+  it('keeps a name with its own breaks as written, and does not wrap container titles', async () => {
+    expect(await text('system A very long name that would wrap<br>here @a', 'a')).toBe('A very long name that would wrap\nhere');
+    expect(await text(lines('boundary A very long boundary title that is not wrapped @a', '  system B'), 'a')).toBe('A very long boundary title that is not wrapped');
+  });
+
+  it('keeps a box sized from its label to 2:1', async () => {
+    const e = find(await scene('system Metrology Pressure & Temperature Sensor @a'), 'a') as unknown as { width: number; height: number };
+    expect(e.width / e.height).toBeLessThanOrEqual(2.01);
   });
 });

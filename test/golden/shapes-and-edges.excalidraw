@@ -6,7 +6,7 @@
     {
       "id": "user:head",
       "type": "ellipse",
-      "x": 480.7,
+      "x": 427,
       "y": 0,
       "width": 20,
       "height": 20,
@@ -36,7 +36,7 @@
     {
       "id": "user:body",
       "type": "line",
-      "x": 490.7,
+      "x": 437,
       "y": 20,
       "width": 0,
       "height": 26.2,
@@ -81,7 +81,7 @@
     {
       "id": "user:arms",
       "type": "line",
-      "x": 470.7,
+      "x": 417,
       "y": 32,
       "width": 40,
       "height": 0,
@@ -126,7 +126,7 @@
     {
       "id": "user:legs",
       "type": "line",
-      "x": 474.7,
+      "x": 421,
       "y": 70,
       "width": 32,
       "height": 23.8,
@@ -175,7 +175,7 @@
     {
       "id": "user",
       "type": "rectangle",
-      "x": 463.2,
+      "x": 409.5,
       "y": 0,
       "width": 55,
       "height": 106,
@@ -214,7 +214,7 @@
     {
       "id": "user:label",
       "type": "text",
-      "x": 468.48,
+      "x": 414.78,
       "y": 76,
       "width": 44.44,
       "height": 25,
@@ -253,10 +253,10 @@
     {
       "id": "web-app",
       "type": "rectangle",
-      "x": 427.7,
+      "x": 137,
       "y": 246,
-      "width": 126,
-      "height": 65,
+      "width": 600,
+      "height": 150,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -306,8 +306,8 @@
     {
       "id": "web-app:label",
       "type": "text",
-      "x": 451.72,
-      "y": 266,
+      "x": 398.02,
+      "y": 308.5,
       "width": 77.96,
       "height": 25,
       "angle": 0,
@@ -344,9 +344,9 @@
       "id": "session-cache",
       "type": "rectangle",
       "x": 45.5,
-      "y": 528.5,
+      "y": 613.5,
       "width": 183,
-      "height": 65,
+      "height": 92,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -383,7 +383,7 @@
       "id": "session-cache:label",
       "type": "text",
       "x": 69.97,
-      "y": 548.5,
+      "y": 647,
       "width": 134.06,
       "height": 25,
       "angle": 0,
@@ -419,8 +419,8 @@
     {
       "id": "accounts:body",
       "type": "line",
-      "x": 233.5,
-      "y": 383.5,
+      "x": 268,
+      "y": 468.5,
       "width": 138,
       "height": 77.5,
       "angle": 0,
@@ -520,8 +520,8 @@
     {
       "id": "accounts:cap",
       "type": "ellipse",
-      "x": 233.5,
-      "y": 371,
+      "x": 268,
+      "y": 456,
       "width": 138,
       "height": 25,
       "angle": 0,
@@ -550,8 +550,8 @@
     {
       "id": "accounts",
       "type": "rectangle",
-      "x": 233.5,
-      "y": 371,
+      "x": 268,
+      "y": 456,
       "width": 138,
       "height": 90,
       "angle": 0,
@@ -589,8 +589,8 @@
     {
       "id": "accounts:label",
       "type": "text",
-      "x": 257.96,
-      "y": 403.5,
+      "x": 292.46,
+      "y": 488.5,
       "width": 89.08,
       "height": 25,
       "angle": 0,
@@ -628,16 +628,16 @@
     {
       "id": "third-parties",
       "type": "rectangle",
-      "x": 268.5,
-      "y": 528.5,
+      "x": 447,
+      "y": 613.5,
       "width": 340,
       "height": 181,
       "angle": 0,
-      "strokeColor": "#868e96",
+      "strokeColor": "#ced4da",
       "backgroundColor": "transparent",
       "fillStyle": "solid",
-      "strokeWidth": 2,
-      "strokeStyle": "dashed",
+      "strokeWidth": 1,
+      "strokeStyle": "dotted",
       "roughness": 1,
       "opacity": 100,
       "groupIds": [],
@@ -661,8 +661,8 @@
     {
       "id": "third-parties:label",
       "type": "text",
-      "x": 273.5,
-      "y": 533.5,
+      "x": 452,
+      "y": 618.5,
       "width": 130.34,
       "height": 25,
       "angle": 0,
@@ -698,10 +698,10 @@
     {
       "id": "payments",
       "type": "rectangle",
-      "x": 288.5,
-      "y": 568.5,
+      "x": 467,
+      "y": 653.5,
       "width": 140,
-      "height": 65,
+      "height": 70,
       "angle": 0,
       "strokeColor": "#1e1e1e",
       "backgroundColor": "transparent",
@@ -735,8 +735,8 @@
     {
       "id": "payments:label",
       "type": "text",
-      "x": 312.64,
-      "y": 588.5,
+      "x": 491.14,
+      "y": 676,
       "width": 91.72,
       "height": 25,
       "angle": 0,
@@ -772,8 +772,8 @@
     {
       "id": "email",
       "type": "rectangle",
-      "x": 468.5,
-      "y": 568.5,
+      "x": 647,
+      "y": 653.5,
       "width": 120,
       "height": 65,
       "angle": 0,
@@ -809,8 +809,8 @@
     {
       "id": "email:label",
       "type": "text",
-      "x": 504.35,
-      "y": 588.5,
+      "x": 682.85,
+      "y": 673.5,
       "width": 48.3,
       "height": 25,
       "angle": 0,
@@ -846,7 +846,7 @@
     {
       "id": "user->web-app",
       "type": "arrow",
-      "x": 490.7,
+      "x": 437,
       "y": 110,
       "width": 0,
       "height": 132,
@@ -918,7 +918,7 @@
     {
       "id": "user->web-app:label",
       "type": "text",
-      "x": 461.84,
+      "x": 408.14,
       "y": 166,
       "width": 57.71,
       "height": 20,
@@ -955,9 +955,9 @@
     {
       "id": "web-app->session-cache",
       "type": "arrow",
-      "x": 452.9,
-      "y": 315,
-      "width": 315.9,
+      "x": 137,
+      "y": 400,
+      "width": 0,
       "height": 209.5,
       "angle": 0,
       "strokeColor": "#1e1e1e",
@@ -990,26 +990,10 @@
         ],
         [
           0,
-          16
-        ],
-        [
-          -315.9,
-          16
-        ],
-        [
-          -315.9,
           101
         ],
         [
-          -315.9,
-          128.13
-        ],
-        [
-          -315.9,
-          155.25
-        ],
-        [
-          -315.9,
+          0,
           209.5
         ]
       ],
@@ -1019,7 +1003,7 @@
         "focus": 0,
         "gap": 4,
         "fixedPoint": [
-          0.2,
+          0,
           1
         ]
       },
@@ -1044,7 +1028,7 @@
       "id": "web-app->session-cache:label",
       "type": "text",
       "x": 71.7,
-      "y": 406,
+      "y": 491,
       "width": 130.59,
       "height": 20,
       "angle": 0,
@@ -1080,9 +1064,9 @@
     {
       "id": "web-app->accounts",
       "type": "arrow",
-      "x": 478.1,
-      "y": 315,
-      "width": 175.6,
+      "x": 337,
+      "y": 400,
+      "width": 0,
       "height": 52,
       "angle": 0,
       "strokeColor": "#1e1e1e",
@@ -1110,14 +1094,6 @@
         ],
         [
           0,
-          26
-        ],
-        [
-          -175.6,
-          26
-        ],
-        [
-          -175.6,
           52
         ]
       ],
@@ -1127,7 +1103,7 @@
         "focus": 0,
         "gap": 4,
         "fixedPoint": [
-          0.4,
+          0.3333,
           1
         ]
       },
@@ -1151,9 +1127,9 @@
     {
       "id": "web-app->payments",
       "type": "arrow",
-      "x": 503.3,
-      "y": 315,
-      "width": 144.8,
+      "x": 537,
+      "y": 400,
+      "width": 0,
       "height": 249.5,
       "angle": 0,
       "strokeColor": "#1e1e1e",
@@ -1181,22 +1157,6 @@
         ],
         [
           0,
-          36
-        ],
-        [
-          -53.8,
-          36
-        ],
-        [
-          -53.8,
-          166
-        ],
-        [
-          -144.8,
-          166
-        ],
-        [
-          -144.8,
           249.5
         ]
       ],
@@ -1206,7 +1166,7 @@
         "focus": 0,
         "gap": 4,
         "fixedPoint": [
-          0.6,
+          0.6667,
           1
         ]
       },
@@ -1230,9 +1190,9 @@
     {
       "id": "web-app->email",
       "type": "arrow",
-      "x": 528.5,
-      "y": 315,
-      "width": 0,
+      "x": 737,
+      "y": 400,
+      "width": 30,
       "height": 249.5,
       "angle": 0,
       "strokeColor": "#1e1e1e",
@@ -1265,10 +1225,26 @@
         ],
         [
           0,
+          50.5
+        ],
+        [
+          0,
+          75.75
+        ],
+        [
+          0,
           101
         ],
         [
           0,
+          166
+        ],
+        [
+          -30,
+          166
+        ],
+        [
+          -30,
           249.5
         ]
       ],
@@ -1278,7 +1254,7 @@
         "focus": 0,
         "gap": 4,
         "fixedPoint": [
-          0.8,
+          1,
           1
         ]
       },
@@ -1302,8 +1278,8 @@
     {
       "id": "web-app->email:label",
       "type": "text",
-      "x": 507.07,
-      "y": 406,
+      "x": 715.57,
+      "y": 491,
       "width": 42.86,
       "height": 20,
       "angle": 0,

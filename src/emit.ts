@@ -274,15 +274,16 @@ function nodeElements(node: LaidOutNode, arrows: string[], groups: string[], ico
   if (node.kind === 'actor' && !iconOnly) {
     const cx = node.x + node.width / 2;
     const top = node.y;
-    const head = ACTOR.head;
+    const s = node.figure ?? 1;
+    const head = ACTOR.head * s;
     const neck = top + head;
-    const hip = top + ACTOR.height * 0.66;
-    const foot = top + ACTOR.height;
-    const half = ACTOR.width / 2;
+    const hip = top + ACTOR.height * s * 0.66;
+    const foot = top + ACTOR.height * s;
+    const half = (ACTOR.width * s) / 2;
     out.push(
-      { ...base(`${node.id}:head`, 'ellipse', groupIds), ...paint(look), x: r(cx - head / 2), y: r(top), width: head, height: head },
+      { ...base(`${node.id}:head`, 'ellipse', groupIds), ...paint(look), x: r(cx - head / 2), y: r(top), width: r(head), height: r(head) },
       line(`${node.id}:body`, [[cx, neck], [cx, hip]], groupIds, look),
-      line(`${node.id}:arms`, [[cx - half, neck + 12], [cx + half, neck + 12]], groupIds, look),
+      line(`${node.id}:arms`, [[cx - half, neck + 12 * s], [cx + half, neck + 12 * s]], groupIds, look),
       line(`${node.id}:legs`, [[cx - half * 0.8, foot], [cx, hip], [cx + half * 0.8, foot]], groupIds, look),
     );
   }
@@ -345,8 +346,16 @@ function withLabelPoint(pts: Point[], centre: Point): { points: Point[]; at: Poi
 const ARROWHEADS: Record<EdgeOp, [string | null, string | null]> = {
   '->': [null, 'arrow'],
   '..>': [null, 'arrow'],
+  '==>': [null, 'arrow'],
+  '<-': ['arrow', null],
+  '<..': ['arrow', null],
+  '<==': ['arrow', null],
   '<->': ['arrow', 'arrow'],
+  '<..>': ['arrow', 'arrow'],
+  '<==>': ['arrow', 'arrow'],
   '--': [null, null],
+  '..': [null, null],
+  '==': [null, null],
 };
 
 /** Where `p` sits on `box`, as fractions of its width and height: an elbow arrow's fixed point. */
